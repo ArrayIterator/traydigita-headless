@@ -51,5 +51,5 @@ declare(strict_types=1);
         // require after autoload to ensure that the autoloader is available for the plugin
         require_once __DIR__ . '/Headless.php';
     }
-    add_action('plugin_loaded', [TrayDigita\WP\Headless\Headless::getInstance(), 'hookPluginLoaded']);
+    add_action('plugin_loaded', [TrayDigita\WP\Headless\Headless::getInstance(), 'pluginLoadedHook']);
 })();

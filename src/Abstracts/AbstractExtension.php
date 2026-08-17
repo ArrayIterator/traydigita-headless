@@ -15,11 +15,16 @@ use function determine_locale;
 use function did_action;
 use function dirname;
 use function doing_action;
+use function end;
+use function explode;
+use function file_exists;
 use function get_class;
 use function load_textdomain;
 use function path_is_absolute;
 use function plugin_basename;
 use function remove_action;
+use function sprintf;
+use function trailingslashit;
 use function trim;
 use const DEBUG_BACKTRACE_IGNORE_ARGS;
 
@@ -117,6 +122,27 @@ abstract class AbstractExtension implements ExtensionInterface
         } else {
             add_action('after_setup_theme', [$this, 'initialize'], 0);
         }
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function jsonSerialize(): array
+    {
+        return [
+            'name' => $this->getName(),
+            'class_name' => get_class($this),
+            'description' => $this->getDescription(),
+            'version' => $this->getVersion(),
+            'homepage' => $this->getHomepage(),
+            'author' => $this->getAuthor(),
+            'keywords' => $this->getKeyWords(),
+            'support_url' => $this->getSupportUrl(),
+            'active' => $this->booted??false,
+            'text_domain' => $this->getTextDomain(),
+            'is_core' => $this->isCore(),
+            'logo' => $this->getLogo(),
+        ];
     }
 
     /**

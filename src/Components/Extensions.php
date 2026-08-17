@@ -11,12 +11,15 @@ use TrayDigita\WP\Headless\Resource\Exceptions\InvalidOperationException;
 use TrayDigita\WP\Headless\Resource\Interfaces\CoreExtensionInterface;
 use TrayDigita\WP\Headless\Resource\Interfaces\ExtensionInterface;
 use TrayDigita\WP\Headless\Resource\Interfaces\ExtensionsInterface;
+use TrayDigita\WP\Headless\Resource\Interfaces\Hooks\HookAdminEnqueueScriptsInterface;
+use TrayDigita\WP\Headless\Resource\Interfaces\Hooks\HookInitInterface;
 use TrayDigita\WP\Headless\Resource\Utils\Callback;
 use TrayDigita\WP\Headless\Resource\Utils\Time;
 use function array_reverse;
 use function array_shift;
 use function class_exists;
 use function count;
+use function doing_action;
 use function get_class;
 use function is_array;
 use function is_int;
@@ -27,10 +30,16 @@ use function str_replace;
 use function strtolower;
 use function time;
 use function uasort;
+use function wp_localize_script;
 use const DIRECTORY_SEPARATOR;
 
-final class Extensions implements ExtensionsInterface
+final class Extensions implements ExtensionsInterface, HookInitInterface, HookAdminEnqueueScriptsInterface
 {
+    /**
+     * Localize key
+     */
+    public const LOCALIZE_KEY = '___TRAYDIGITA_EXTENSIONS___';
+
     /**
      * Option name for storing active extensions
      */
@@ -131,6 +140,42 @@ final class Extensions implements ExtensionsInterface
      *      The invalid reflections for the extensions.
      */
     private static array $invalidReflections = [];
+
+    /**
+     * @var bool $hookInit
+     */
+    private bool $hookInit = false;
+
+    /**
+     * @inheritdoc
+     */
+    public function initHook() : void
+    {
+        if ($this->hookInit) {
+            return;
+        }
+        if (!doing_action('init')) {
+            return;
+        }
+        $this->hookInit = true;
+    }
+
+    /**
+     * Hook enqueue
+     * @return void
+     */
+    public function adminEnqueueScriptHook() : void
+    {
+        if (!doing_action('admin_enqueue_scripts')) {
+            return;
+        }
+        wp_localize_script(
+            $this->container->adminScriptHandle,
+            self::LOCALIZE_KEY,
+            $this->getExtensions()
+        );
+        // todo: add dependencies or variables
+    }
 
     /**
      * Extensions constructor.

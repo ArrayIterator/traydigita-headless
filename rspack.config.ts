@@ -1,5 +1,7 @@
+// noinspection HttpUrlsUsage
+
 import {defineConfig} from "@rspack/cli";
-import {Compilation, Compiler, Configuration} from "@rspack/core";
+import {Compilation, Compiler, Configuration, SwcJsMinimizerRspackPlugin} from "@rspack/core";
 import {fileURLToPath} from "node:url";
 import {glob} from "glob";
 import path from "node:path";
@@ -37,30 +39,45 @@ class EntryManifestPlugin {
             const stage = compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_REPORT;
             compilation.hooks.processAssets.tap({name: "EntryManifestPlugin", stage}, () => {
                 const manifest: Manifest = {};
+
                 for (const [entryName, entrypoint] of compilation.entrypoints) {
-                    const file = entrypoint
-                        .getFiles()
-                        ?.find((file: string) => file.endsWith(".js") || file.endsWith(".css")) || '';
-                    const key : "js" | "css" = file.endsWith(".js") ? "js" : "css";
+                    if (!manifest[entryName]) {
+                        manifest[entryName] = {};
+                    }
+
                     const name = entrypoint.name || entryName;
-                    const files = entrypoint.getFiles().map((file: string) => {
+                    const allFiles = entrypoint.getFiles();
+
+                    const filesDetails = allFiles.map((file: string) => {
                         const asset = compilation.getAsset(file);
                         return {
                             file,
                             size: asset ? asset.source.size() : 0
                         };
                     });
-                    const size = files.reduce((acc: number, file: { size: number }) => acc + file.size, 0);
-                    if (!manifest[entryName]) {
-                        manifest[entryName] = {};
+                    const jsFiles = filesDetails.filter(({file}) => file.endsWith(".js"));
+                    const jsFile = jsFiles.map(({file}) => file)[0];
+                    const cssFiles = filesDetails.filter(({file}) => file.endsWith(".css"));
+                    const cssFile = cssFiles.map(({file}) => file)[0];
+                    if (jsFile) {
+                        manifest[entryName]["js"] = {
+                            name,
+                            entryName,
+                            file: jsFile,
+                            size: jsFiles.reduce((acc, f) => acc + f.size, 0),
+                            files: jsFiles
+                        };
                     }
-                    manifest[entryName][key] = {
-                        name,
-                        entryName,
-                        file,
-                        size,
-                        files
-                    };
+
+                    if (cssFile) {
+                        manifest[entryName]["css"] = {
+                            name,
+                            entryName,
+                            file: cssFile,
+                            size: cssFiles.reduce((acc, f) => acc + f.size, 0),
+                            files: cssFiles
+                        };
+                    }
                 }
 
                 const source = new compiler.webpack.sources.RawSource(
@@ -73,31 +90,65 @@ class EntryManifestPlugin {
 }
 
 const files: Record<string, string> = {};
+const serverHost = '127.0.0.1';
+const serverPort = 3001;
+const aggregateTimeout = 500;
 
 glob.sync('assets/js/*.{ts,tsx,js,jsx}', {
     ignore: ['**/node_modules/**', '**/vendor/**']
 }).forEach((file: string) => {
+    if (file.endsWith('.d.ts')) {
+        return;
+    }
     const name = path.basename(file, path.extname(file));
     files[name] = `./${file}`;
 });
 
 // noinspection JSUnusedGlobalSymbols
 export default defineConfig((env, _argv): Configuration => {
-    const isProduction = (env.RSPACK_SERVE ? 'development' : 'production') === "production";
+    const mode = (env.RSPACK_SERVE ? 'development' : 'production');
+    const isProduction = mode === "production";
     console.log(`Building for ${isProduction ? "production" : "development"} mode...`);
     return {
-        mode: isProduction ? "production" : "development",
+        mode,
         context: __dirname,
         entry: files,
+        watchOptions: isProduction ? {} : {
+            aggregateTimeout,
+            ignored: /^(?!.*[\\/]assets[\\/]).*\.(?!tsx?|css)$/
+        },
+        optimization: {
+            minimize: isProduction,
+            minimizer: [
+                new SwcJsMinimizerRspackPlugin({
+                    minimizerOptions: {
+                        compress: {
+                            drop_console: isProduction,
+                        },
+                    },
+                }),
+            ]
+        },
         output: {
             path: path.resolve(__dirname, "dist"),
-            filename: isProduction ? "js/[name].[contenthash:8].js" : "js/[name].js",
             clean: true,
-            publicPath: "/"
+            chunkFormat: 'module',
+            chunkLoading: 'import',
+            module: true,
+            library: {
+                type: 'modern-module',
+            },
+            filename: isProduction ? "js/[name].[contenthash:8].js" : "js/[name].js",
+            cssFilename: isProduction ? "css/[name].[contenthash:8].css" : "css/[name].css",
+            assetModuleFilename: isProduction ? "images/[name].[contenthash:8][ext]" : "images/[name][ext]",
+            publicPath: isProduction ? "/" : `http://${serverHost}:${serverPort}/`,
+            crossOriginLoading: isProduction ? false : "anonymous",
+            uniqueName: "traydigita_headless",
+            hotUpdateGlobal: "webpackHotUpdatetraydigita_headless",
         },
-        devtool: isProduction ? "source-map" : "cheap-module-source-map",
+        devtool: isProduction ? false : "cheap-module-source-map",
         resolve: {
-            extensions: [".ts", ".tsx", ".js", ".jsx", ".json"]
+            extensions: [".ts", ".tsx", ".js", ".jsx", ".json", ".css"]
         },
         module: {
             rules: [
@@ -115,22 +166,56 @@ export default defineConfig((env, _argv): Configuration => {
                             }
                         }
                     }
-                }
+                },
+                {
+                    test: /\.css$/,
+                    use: [
+                        {
+                            loader: 'postcss-loader',
+                            options: {
+                                postcssOptions: {
+                                    config: true,
+                                },
+                            },
+                        },
+                    ],
+                    type: 'css/auto',
+                },
+                {
+                    test: /\.(png|jpe?g|gif|webp|svg|heic|avif)$/i,
+                    type: 'asset',
+                    parser: {
+                        dataUrlCondition: {
+                            maxSize: 8 * 1024
+                        }
+                    }
+                },
             ]
         },
         plugins: [
             new EntryManifestPlugin()
         ],
         devServer: {
-            host: "127.0.0.1",
-            port: 3001,
+            host: serverHost,
+            port: serverPort,
             hot: true,
             liveReload: false,
+            // liveReload: true,
+            client: isProduction ? {} : {
+                webSocketURL: `ws://${serverHost}:${serverPort}/ws`,
+                overlay: true,
+            },
+            headers: {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                "Access-Control-Allow-Headers": "X-Requested-With, content-type, Authorization"
+            },
             static: {
-                directory: path.resolve(__dirname, "dist")
+                directory: path.resolve(__dirname, "dist"),
+                watch: false
             },
             devMiddleware: {
-                writeToDisk: true
+                writeToDisk: (filePath) => !filePath.toLowerCase().includes('hot-update')
             },
             allowedHosts: "all",
             onListening: (server) => {

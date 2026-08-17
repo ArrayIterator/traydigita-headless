@@ -5,6 +5,7 @@ namespace TrayDigita\WP\Headless\Resource\Components;
 
 // todo: implement the rest api component
 use TrayDigita\WP\Headless\Resource\Abstracts\AbstractRoute;
+use TrayDigita\WP\Headless\Resource\Interfaces\Hooks\HookRestApiInitInterface;
 use TrayDigita\WP\Headless\Resource\Interfaces\Rest\RestInterface;
 use TrayDigita\WP\Headless\Resource\Utils\Callback;
 use function class_exists;
@@ -18,7 +19,7 @@ use function strtolower;
 /**
  * @template TRoute of AbstractRoute
  */
-class Rest implements RestInterface
+class Rest implements RestInterface, HookRestApiInitInterface
 {
     /**
      * @var string $namespace The namespace for the REST API
@@ -31,9 +32,24 @@ class Rest implements RestInterface
     private array $routes;
 
     /**
-     * @var bool $initialized Whether the REST API has been initialized
+     * @var bool $hookInit Whether the REST API has been initialized
      */
-    private bool $initialized = false;
+    private bool $hookInit = false;
+
+    /**
+     * @inheritdoc
+     */
+    public function initHook(): void
+    {
+        if ($this->hookInit) {
+            return;
+        }
+        if (!did_action('rest_api_init') && !did_action('rest_api_init')) {
+            return;
+        }
+        $this->hookInit = true;
+        // todo: register the routes
+    }
 
     /**
      * Rest constructor.
@@ -46,25 +62,9 @@ class Rest implements RestInterface
     }
 
     /**
-     * Initialize the REST API
-     * Dispatch the rest_api_init hook if it hasn't been dispatched yet
-     */
-    public function dispatchHook(): void
-    {
-        if ($this->initialized) {
-            return;
-        }
-        if (!did_action('rest_api_init') && !did_action('rest_api_init')) {
-            return;
-        }
-        $this->initialized = true;
-        // todo: register the routes
-    }
-
-    /**
      * Make a string / object class name lowercase
      *
-     * @template T of ExtensionInterface|object
+     * @template T of object|TRoute
      * @param string|class-string<T>|T $string
      * @return string|lowercase-string<class-string<T>>
      */

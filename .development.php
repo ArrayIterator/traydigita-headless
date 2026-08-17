@@ -62,11 +62,13 @@ if (!function_exists('traydigita_development_plugins_before_init')) {
         /**
          * @var TrayDigita\WP\Headless\Resource\TrayDigita $traydigita
          */
+        /** @noinspection PhpIfWithCommonPartsInspection */
         if (!$traydigita->is_development) {
             return $traydigita;
         }
-        $traydigita->assets->getJsManifest('traydigita-headless');
+        // tests
+        // $traydigita->assets->getJsManifest('traydigita-headless');
         return $traydigita;
     }
 }
-add_action('traydigita:before_init', 'traydigita_development_plugins_before_init');
+add_action('traydigita:init:before', 'traydigita_development_plugins_before_init');

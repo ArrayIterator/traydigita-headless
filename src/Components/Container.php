@@ -22,6 +22,7 @@ use function DI\factory;
 use function DI\get;
 use function DI\value;
 use function plugin_dir_path;
+use function plugin_dir_url;
 use function wp_normalize_path;
 
 /**
@@ -31,7 +32,7 @@ use function wp_normalize_path;
  * @property-read ServerRequestInterface $server_request
  * @property-read ServerRequestInterface $serverRequest
  * @property-read ServerRequestInterface $request
- * @property-read ExtensionsInterface $extensions
+ * @property-read Extensions $extensions
  * @property-read Feature $feature
  * @property-read TrayDigita $traydigita
  * @property-read Assets $assets
@@ -77,6 +78,12 @@ use function wp_normalize_path;
  * @property-read string $plugin_file
  * @property-read string $plugin_dir
  * @property-read string $plugin_url
+ * @property-read ?array{
+ *      host: string,
+ *      port: int,
+ *      url: string,
+ *  } $development_servers_json
+ * @property-read string $admin_script_handle
  */
 class Container implements ContainerInterface
 {
@@ -111,17 +118,21 @@ class Container implements ContainerInterface
     /**
      * Container constructor.
      * @param bool $development Indicates whether the plugin is in development mode.
+     * @param string $version
      * @param ?array{
      *     host: string,
      *     port: int,
      *     url: string,
      * } $developmentServersJson An array of development server URLs.
      * @param string $pluginFile The path to the main plugin file.
+     * @param string $adminScriptHandle The main scriptname to load
      */
     public function __construct(
         public readonly bool $development,
+        public readonly string $version,
         public readonly ?array $developmentServersJson,
-        public readonly string $pluginFile
+        public readonly string $pluginFile,
+        public readonly string $adminScriptHandle
     ) {
         $this->pluginDir = wp_normalize_path(plugin_dir_path($this->pluginFile));
         $this->pluginUrl = plugin_dir_url($this->pluginFile);
@@ -144,6 +155,10 @@ class Container implements ContainerInterface
             'plugin_dir' => get('pluginDir'),
             'pluginUrl' => value($this->pluginUrl),
             'plugin_url' => get('pluginUrl'),
+            'version' => value($this->version),
+            'admin_script_handle' => value($this->adminScriptHandle),
+            'developmentServersJson' => value($this->developmentServersJson),
+            'development_servers_json' => get('developmentServersJson'),
             // self
             ContainerInterface::class => value($this),
             self::class => value($this),

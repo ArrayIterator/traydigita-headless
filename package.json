@@ -10,6 +10,7 @@
         "build": "rspack build"
     },
     "dependencies": {
+        "@swc/wasm-web": "^1.16.0",
         "react": "19.2.8",
         "react-dom": "19.2.8",
         "react-icons": "^5.7.0"
@@ -22,6 +23,9 @@
         "@types/node": "^20",
         "@types/react": "^19",
         "@types/react-dom": "^19",
-        "glob": "^13.0.6"
+        "glob": "^13.0.6",
+        "postcss": "^8.5.26",
+        "postcss-loader": "^8.2.1",
+        "tailwindcss": "^4.3.3"
     }
 }

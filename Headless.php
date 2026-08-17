@@ -31,12 +31,16 @@ use const PHP_INT_MIN;
  */
 final class Headless
 {
+    public const VERSION = '1.0.0';
+
     public const DEVELOPMENT_FILE = __DIR__ . '/.development.php';
 
     /**
      * @var string DEVELOPMENT_SERVER_FILE path to the development server file
      */
     public const DEVELOPMENT_SERVER_FILE = __DIR__ . '/.server.json';
+
+    public const MAIN_SCRIPT_NAME = 'traydigita-headless-admin';
 
     /**
      * @var self
@@ -118,8 +122,10 @@ final class Headless
         }
         $this->traydigita = (new Container(
             $this->isDev(),
+            self::VERSION,
             $this->getServerJson(),
-            $plugin_file
+            $plugin_file,
+            self::MAIN_SCRIPT_NAME
         ))->traydigita;
         if ($this->isDev() && file_exists($this->developmentFile)) {
             Callback::apply(static function ($file) {
@@ -150,7 +156,7 @@ final class Headless
     /**
      * Initialize the Headless instance
      */
-    public function hookPluginLoaded(): self
+    public function pluginLoadedHook(): self
     {
         if ($this->initialized) {
             return $this;
@@ -160,10 +166,9 @@ final class Headless
         }
         $this->initialized = true;
 
-        do_action('traydigita:headless_init', $this);
-
-        add_action('traydigita:before_init', [$this, 'hookHeadlessInit'], PHP_INT_MIN);
-        add_action('traydigita:after_init', [$this, 'hookHeadlessAfterInit'], PHP_INT_MAX);
+        do_action('traydigita:headless:init', $this);
+        add_action('traydigita:init:before', [$this, 'hookHeadlessInit'], PHP_INT_MIN);
+        add_action('traydigita:init:after', [$this, 'hookHeadlessAfterInit'], PHP_INT_MAX);
 
         if (doing_action('plugins_loaded') || did_action('plugins_loaded')) {
             $this->traydigita->init();
@@ -184,12 +189,12 @@ final class Headless
         if ($this->headlessInitialized) {
             return $result;
         }
-        if (!doing_action('traydigita:before_init')) {
+        if (!doing_action('traydigita:init:before')) {
             return $result;
         }
         $this->headlessInitialized = true;
         // remove the action to prevent multiple calls
-        remove_action('traydigita:before_init', [$this, __FUNCTION__], PHP_INT_MIN);
+        remove_action('traydigita:init:before', [$this, __FUNCTION__], PHP_INT_MIN);
         $extensions = $this->extensions;
         foreach (self::CORE_EXTENSIONS as $extension) {
             Callback::apply([$extensions, 'register'], $extension);
@@ -208,14 +213,13 @@ final class Headless
         if ($this->lateHeadlessInitialized) {
             return $result;
         }
-        if (!doing_action('traydigita:after_init')) {
+        if (!doing_action('traydigita:init:after')) {
             return $result;
         }
         $this->lateHeadlessInitialized = true;
 
         // remove the action to prevent multiple calls
-        remove_action('traydigita:after_init', [$this, __FUNCTION__], PHP_INT_MAX);
-
+        remove_action('traydigita:init:after', [$this, __FUNCTION__], PHP_INT_MAX);
         $extensions = $this->extensions;
         if ($extensions->isBooted()) {
             $extensions->shutdown(); // do shut down first, then boot again

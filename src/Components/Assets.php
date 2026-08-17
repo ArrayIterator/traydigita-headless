@@ -3,9 +3,12 @@ declare(strict_types=1);
 
 namespace TrayDigita\WP\Headless\Resource\Components;
 
+use TrayDigita\WP\Headless\Resource\Interfaces\Hooks\HookInitInterface;
 use TrayDigita\WP\Headless\Resource\Utils\Callback;
 use function apply_filters;
 use function array_any;
+use function did_action;
+use function doing_action;
 use function file_exists;
 use function is_array;
 use function is_int;
@@ -18,8 +21,11 @@ use function strlen;
 use function substr;
 use function trailingslashit;
 use function trim;
+use function wp_register_script_module;
+use function wp_register_style;
+use function wp_set_script_module_translations;
 
-class Assets
+class Assets implements HookInitInterface
 {
     /**
      * @var string
@@ -40,6 +46,50 @@ class Assets
      * @var string
      */
     protected string $manifestFile;
+
+    /**
+     * @var bool $hookInit
+     */
+    private bool $hookInit = false;
+
+    /**
+     * @inheritdoc
+     */
+    public function initHook() : void
+    {
+        if ($this->hookInit) {
+            return;
+        }
+        if (!doing_action('init') && !did_action('init')) {
+            return;
+        }
+        $this->hookInit = true;
+        $handle = $this->container->adminScriptHandle;
+        $js = $this->getJsManifest($handle);
+        $css = $this->getCssManifest($handle);
+        if ($js) {
+            wp_register_script_module(
+                $handle,
+                $js['url'],
+                [],
+                $this->container->version,
+                [
+                    'strategy' => 'defer',
+                    'in_footer' => true
+                ]
+            );
+            wp_set_script_module_translations($handle, 'traydigita');
+        }
+        if ($css) {
+            wp_register_style(
+                $handle,
+                $css['url'],
+                [],
+                $this->container->version,
+                'all'
+            );
+        }
+    }
 
     /**
      * Assets constructor.

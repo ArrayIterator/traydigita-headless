@@ -7,7 +7,7 @@
             "DOM.Iterable"
         ],
         "module": "ESNext",
-        "moduleResolution": "classic",
+        "moduleResolution": "bundler",
         "allowJs": true,
         "checkJs": false,
         "declaration": true,
@@ -32,6 +32,7 @@
         ]
     },
     "include": [
+        "./declarations.d.ts",
         "./node_modules/@types/**/*.d.ts",
         "assets/**/*.ts",
         "assets/**/*.tsx"

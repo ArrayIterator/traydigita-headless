@@ -19,28 +19,82 @@ use const PHP_URL_HOST;
  */
 class Site
 {
+    /**
+     * The site's hostname, parsed from the site URL.
+     *
+     * @var string
+     */
     private string $hostname;
 
+    /**
+     * The site URL as returned by get_site_url().
+     *
+     * @var string
+     */
     private string $siteUrl;
 
+    /**
+     * The home URL as returned by get_home_url().
+     *
+     * @var string
+     */
     private string $homeUrl;
 
+    /**
+     * The site name (blog name).
+     *
+     * @var string
+     */
     private string $name;
 
+    /**
+     * The site description (tagline).
+     *
+     * @var string
+     */
     private string $description;
 
+    /**
+     * The admin email address of the site.
+     *
+     * @var string
+     */
     private string $email;
 
+    /**
+     * The site language locale.
+     *
+     * @var string
+     */
     private string $language;
 
+    /**
+     * The site charset.
+     *
+     * @var string
+     */
     private string $charset;
 
+    /**
+     * The WordPress version.
+     *
+     * @var string
+     */
     private string $version;
 
+    /**
+     * Site constructor.
+     */
     public function __construct()
     {
     }
 
+    /**
+     * Get the site URL, optionally forcing a refresh.
+     *
+     * @param bool $force Force re-fetching the value instead of using the cached one.
+     * @return string
+     */
     public function getSiteUrl(bool $force = false): string
     {
         if ($force || empty($this->siteUrl)) {
@@ -49,6 +103,12 @@ class Site
         return $this->siteUrl;
     }
 
+    /**
+     * Get the home URL, optionally forcing a refresh.
+     *
+     * @param bool $force Force re-fetching the value instead of using the cached one.
+     * @return string
+     */
     public function getHomeUrl(bool $force = false): string
     {
         if ($force || empty($this->homeUrl)) {
@@ -57,6 +117,12 @@ class Site
         return $this->homeUrl;
     }
 
+    /**
+     * Get the site hostname parsed from the site URL, optionally forcing a refresh.
+     *
+     * @param bool $force Force re-fetching the value instead of using the cached one.
+     * @return string
+     */
     public function getHostname(bool $force = false): string
     {
         if ($force || empty($this->hostname)) {
@@ -67,6 +133,12 @@ class Site
         return $this->hostname;
     }
 
+    /**
+     * Get the site name (blog name), optionally forcing a refresh.
+     *
+     * @param bool $force Force re-fetching the value instead of using the cached one.
+     * @return string
+     */
     public function getName(bool $force = false): string
     {
         if ($force || empty($this->name)) {
@@ -75,6 +147,12 @@ class Site
         return $this->name;
     }
 
+    /**
+     * Get the site description (tagline), optionally forcing a refresh.
+     *
+     * @param bool $force Force re-fetching the value instead of using the cached one.
+     * @return string
+     */
     public function getDescription(bool $force = false): string
     {
         if ($force || empty($this->description)) {
@@ -83,6 +161,12 @@ class Site
         return $this->description;
     }
 
+    /**
+     * Get the admin email address of the site, optionally forcing a refresh.
+     *
+     * @param bool $force Force re-fetching the value instead of using the cached one.
+     * @return string
+     */
     public function getEmail(bool $force = false): string
     {
         if ($force || empty($this->email)) {
@@ -91,6 +175,12 @@ class Site
         return $this->email;
     }
 
+    /**
+     * Get the site language locale, optionally forcing a refresh.
+     *
+     * @param bool $force Force re-fetching the value instead of using the cached one.
+     * @return string
+     */
     public function getLanguage(bool $force = false): string
     {
         if ($force || empty($this->language)) {
@@ -99,6 +189,12 @@ class Site
         return $this->language;
     }
 
+    /**
+     * Get the site charset, optionally forcing a refresh.
+     *
+     * @param bool $force Force re-fetching the value instead of using the cached one.
+     * @return string
+     */
     public function getCharset(bool $force = false): string
     {
         if ($force || empty($this->charset)) {
@@ -107,6 +203,12 @@ class Site
         return $this->charset;
     }
 
+    /**
+     * Get the WordPress version, optionally forcing a refresh.
+     *
+     * @param bool $force Force re-fetching the value instead of using the cached one.
+     * @return string
+     */
     public function getVersion(bool $force = false): string
     {
         if ($force || empty($this->version)) {
@@ -115,6 +217,12 @@ class Site
         return $this->version;
     }
 
+    /**
+     * Magic getter to access properties via their public-facing property names.
+     *
+     * @param string $name The property name to retrieve.
+     * @return mixed
+     */
     public function __get(string $name)
     {
         return match ($name) {
@@ -131,11 +239,23 @@ class Site
         };
     }
 
+    /**
+     * Magic un-setter, intentionally a no-op since properties are managed internally.
+     *
+     * @param string $name The property name to unset.
+     * @return void
+     */
     public function __unset(string $name): void
     {
         // void
     }
 
+    /**
+     * Magic isset check for public-facing property names.
+     *
+     * @param string $name The property name to check.
+     * @return bool
+     */
     public function __isset(string $name): bool
     {
         return match ($name) {

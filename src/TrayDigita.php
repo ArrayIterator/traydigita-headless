@@ -7,6 +7,7 @@ use TrayDigita\WP\Headless\Resource\Components\Container;
 use TrayDigita\WP\Headless\Resource\Utils\Filter;
 use function add_action;
 use function array_merge;
+use function base64_encode;
 use function do_action;
 use function intval;
 use function is_int;
@@ -94,12 +95,31 @@ HTML;
         }
         $this->initialized = true;
 
-        do_action('traydigita:before_init', $this);
-        do_action('traydigita:init', $this);
-        do_action('traydigita:after_init', $this);
+        // --------------------------------------------------------------
+        // HOOKS
+        // --------------------------------------------------------------
+        do_action('traydigita:init:before', $this); // dispatch before
+        do_action('traydigita:init', $this); // dispatch in-time
+        do_action('traydigita:init:after', $this); // dispatch after
 
-        add_action('admin_menu', [$this->admin_menu, 'dispatchHook']);
-        add_action('rest_api_init', [$this->rest, 'dispatchHook']);
+        // --------------------------------------------------------------
+        // INIT
+        // --------------------------------------------------------------
+        add_action('rest_api_init', [$this->rest, 'initHook']);
+        add_action('init', [$this->assets, 'initHook']);
+        add_action('init', [$this->extensions, 'initHook']);
+
+        // --------------------------------------------------------------
+        // ADMIN ENQUEUE SCRIPTS
+        // --------------------------------------------------------------
+        add_action('admin_enqueue_scripts', [$this->admin_menu, 'adminEnqueueScriptHook']);
+        add_action('admin_enqueue_scripts', [$this->extensions, 'adminEnqueueScriptHook']);
+
+        // --------------------------------------------------------------
+        // OTHERS
+        // --------------------------------------------------------------
+        // ADMIN MENU
+        add_action('admin_menu', [$this->admin_menu, 'adminMenuHook']);
     }
 
     /**

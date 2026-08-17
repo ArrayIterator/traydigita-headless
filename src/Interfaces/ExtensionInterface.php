@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 namespace TrayDigita\WP\Headless\Resource\Interfaces;
 
-interface ExtensionInterface
+use JsonSerializable;
+
+interface ExtensionInterface extends JsonSerializable
 {
     /**
      * Unknown version of the extension

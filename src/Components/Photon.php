@@ -18,15 +18,28 @@ use function strtolower;
 use function wp_parse_url;
 use const PATHINFO_EXTENSION;
 
+/**
+ * Provides functionality to work with the Photon CDN for image optimization.
+ */
 class Photon
 {
+    /**
+     * List of WordPress CDN domains used for serving images.
+     *
+     * @var array<int, string>
+     */
     public const WP_CDN_LISTS = [
         'i0.wp.com',
-//        'i1.wp.com',
-//        'i2.wp.com',
-//        'i3.wp.com',
+        // 'i1.wp.com',
+        // 'i2.wp.com',
+        // 'i3.wp.com',
     ];
 
+    /**
+     * List of supported image file extensions for the Photon CDN.
+     *
+     * @var array<int, string>
+     */
     public const JETPACK_IMAGE_SUPPORTS = [
         'jpg',
         'jpeg',
@@ -37,10 +50,21 @@ class Photon
         'heic'
     ];
 
+    /**
+     * Photon constructor.
+     *
+     * @param Site $site The site instance to use for URL parsing and validation
+     */
     public function __construct(public readonly Site $site)
     {
     }
 
+    /**
+     * Index the URL to determine if it can be served by the Photon CDN
+     *
+     * @param mixed $url The URL to index
+     * @return array|null An associative array with 'url', 'host', 'path', and 'index' keys, or null if not applicable
+     */
     public function index(mixed $url): ?array
     {
         if ($url instanceof Image) {
@@ -84,12 +108,26 @@ class Photon
         ];
     }
 
+    /**
+     * Get the Photon CDN URL based on the index
+     *
+     * @param int $index The index of the CDN domain to use
+     * @return string|null The Photon CDN URL or null if the index is invalid
+     */
     public function urlIndex(int $index): ?string
     {
         $domain = self::WP_CDN_LISTS[$index] ?? null;
         return $domain ? "https://$domain/" : null;
     }
 
+    /**
+     * Replace the URL with the Photon CDN URL based on the index
+     *
+     * @param string $url The URL to replace
+     * @param int $index The index of the CDN domain to use
+     * @param bool|null $found Whether the URL was replaced or not
+     * @return string The replaced URL or the original URL if not applicable
+     */
     public function replaceWithIndex(string $url, int $index, ?bool &$found = null): string
     {
         $uri = $this->urlIndex($index);
@@ -114,6 +152,13 @@ class Photon
         return $url;
     }
 
+    /**
+     * Replace the URL with the Photon CDN URL if applicable
+     *
+     * @param mixed $url The URL to replace
+     * @param bool|null $found Whether the URL was replaced or not
+     * @return string The replaced URL or the original URL if not applicable
+     */
     public function replace(mixed $url, ?bool &$found = null): string
     {
         if (is_string($url) && $this->satisfied($url)) {
@@ -127,6 +172,12 @@ class Photon
         return $this->replaceWithIndex($parsed['url'], $parsed['index'], $found);
     }
 
+    /**
+     * Check if the URL is satisfied with the Photon CDN
+     *
+     * @param mixed $url The URL to check
+     * @return bool True if the URL is satisfied, false otherwise
+     */
     public function satisfied(mixed $url): bool
     {
         return is_string($url) && preg_match(
