@@ -1,0 +1,103 @@
+# Copyright (C) 2026 TrayDigita
+# This file is distributed under the GPLv2 or later.
+msgid ""
+msgstr ""
+"Project-Id-Version: TrayDigita Headless 1.0.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/traydigita-"
+"headless\n"
+"POT-Creation-Date: 2026-08-16T02:45:22+07:00\n"
+"PO-Revision-Date: 2026-08-15 08:48+0700\n"
+"Last-Translator: ArrayIterator <arrayiterator@arrayiterator>\n"
+"Language-Team: Indonesian <translation-team-id@lists.sourceforge.net>\n"
+"Language: id\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: traydigita\n"
+
+#. Plugin Name of the plugin
+#: traydigita-headless.php src/Components/AdminMenu.php:93
+msgid "TrayDigita Headless"
+msgstr "TrayDigita Headless"
+
+#. Plugin URI of the plugin
+#. Author URI of the plugin
+#: traydigita-headless.php
+msgid "https://traydigita.com"
+msgstr "https://traydigita.com"
+
+#. Description of the plugin
+#: traydigita-headless.php
+msgid "A headless plugin for WordPress"
+msgstr "Plugin headless untuk WordPress"
+
+#. Author of the plugin
+#: traydigita-headless.php src/Components/AdminMenu.php:103
+msgid "TrayDigita"
+msgstr "TrayDigita"
+
+#: extensions/GraphQL.php:16
+msgid "GraphQL extension for Headless WordPress"
+msgstr "Ekstensi GraphQL untuk WordPress Headless"
+
+#: extensions/PopularPosts.php:19
+msgid "Popular Posts"
+msgstr "Post Populer"
+
+#: extensions/PopularPosts.php:27
+msgid "Popular Posts extension for Headless WordPress"
+msgstr "Ekstensi Postingan Populer untuk WordPress Headless"
+
+#: extensions/TokenizerAuth.php:17
+#, fuzzy
+msgid "Tokenizer Auth extension for Headless WordPress"
+msgstr "Ekstensi GraphQL untuk WordPress Headless"
+
+#: rest/PluginInfo.php:15
+msgid "Plugin Info"
+msgstr "Informasi Plugin"
+
+#: rest/PluginInfo.php:22 rest/PluginInfo.php:34
+msgid "Plugin slug"
+msgstr "Slug Plugin"
+
+#: rest/PluginInfo.php:40
+msgid "Plugin version"
+msgstr "Versi Plugin"
+
+#: rest/PluginInfo.php:46
+msgid "Plugin name"
+msgstr "Nama Plugin"
+
+#: src/Analytics/Providers/SiteKitGoogle.php:70
+msgid "Analytics API is not connected"
+msgstr "API Analitik tidak terhubung"
+
+#: src/Analytics/Providers/SiteKitGoogle.php:166
+msgid "Google SiteKit is not ready or not installed"
+msgstr "Google SiteKit tidak siap atau tidak terinstal"
+
+#: src/Analytics/Providers/SiteKitGoogle.php:177
+msgid "Google SiteKit Analytics API is not ready"
+msgstr "API Analitik Google SiteKit tidak siap"
+
+#: src/Analytics/Providers/SiteKitGoogle.php:185
+msgid "Can not get setting for analytics"
+msgstr "Tidak dapat mendapatkan pengaturan untuk analitik"
+
+#: src/Analytics/Providers/SiteKitGoogle.php:193
+msgid "Can not get property id for analytics"
+msgstr "Tidak dapat mendapatkan ID properti untuk analitik"
+
+#: src/Analytics/Providers/SiteKitGoogle.php:256
+msgid "Can not get records"
+msgstr "Tidak dapat mendapatkan catatan"
+
+#: traydigita-headless.php:37
+msgid ""
+"TrayDigita Headless plugin requires Composer dependencies to be installed. "
+"Please run \"composer install\" in the plugin directory."
+msgstr ""
+"Plugin TrayDigita Headless memerlukan dependensi Composer untuk diinstal. "
+"Silakan jalankan \"composer install\" di direktori plugin."

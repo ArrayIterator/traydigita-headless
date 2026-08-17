@@ -1,0 +1,63 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Traydigita Headless Assets Schema",
+    "type": "object",
+    "definitions": {
+        "context": {
+            "type": "object",
+            "required": [
+                "name",
+                "type",
+                "entryName",
+                "file",
+                "size"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "entryName": {
+                    "type": "string"
+                },
+                "file": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "file": {
+                                "type": "string"
+                            },
+                            "size": {
+                                "type": "integer"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "assets": {
+            "type": "object",
+            "properties": {
+                "css": {
+                    "type": "object",
+                    "$ref": "#/definitions/context"
+                },
+                "js": {
+                    "type": "object",
+                    "$ref": "#/definitions/context"
+                }
+            }
+        }
+    },
+    "patternProperties": {
+        ".*": {
+            "$ref": "#/definitions/assets"
+        }
+    }
+}
