@@ -35,7 +35,7 @@ class DatetimeImmutableUnit extends DateTimeImmutable implements Stringable
     /**
      * @return int
      */
-    public function toMilliSeconds() : int
+    public function toMilliSeconds(): int
     {
         return (int)($this->format('Uv'));
     }
@@ -43,7 +43,7 @@ class DatetimeImmutableUnit extends DateTimeImmutable implements Stringable
     /**
      * @return int
      */
-    public function toMicroseconds() : int
+    public function toMicroseconds(): int
     {
         return (int)($this->format('Uu'));
     }
@@ -67,7 +67,7 @@ class DatetimeImmutableUnit extends DateTimeImmutable implements Stringable
     /**
      * @return static
      */
-    public static function now() : static
+    public static function now(): static
     {
         return new static();
     }
@@ -79,7 +79,7 @@ class DatetimeImmutableUnit extends DateTimeImmutable implements Stringable
      * @return static
      * @throws Exception
      */
-    public static function createFromFormat($format, $datetime, $timezone = null) : static
+    public static function createFromFormat($format, $datetime, $timezone = null): static
     {
         $datetime = parent::createFromFormat($format, $datetime, $timezone);
         if (!$datetime) {
@@ -93,7 +93,7 @@ class DatetimeImmutableUnit extends DateTimeImmutable implements Stringable
      * @return static
      * @throws Exception
      */
-    public static function createFromMutable(DateTime $object) : static
+    public static function createFromMutable(DateTime $object): static
     {
         return static::wrap(parent::createFromMutable($object));
     }
@@ -103,7 +103,7 @@ class DatetimeImmutableUnit extends DateTimeImmutable implements Stringable
      * @return static
      * @noinspection PhpDocMissingThrowsInspection
      */
-    public static function createFromInterface(DateTimeInterface $object) : static
+    public static function createFromInterface(DateTimeInterface $object): static
     {
         /** @noinspection PhpUnhandledExceptionInspection */
         return static::wrap(parent::createFromInterface($object));

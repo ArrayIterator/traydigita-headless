@@ -53,11 +53,11 @@ if (!function_exists('traydigita_development_assets_manifest_definition')) {
 }
 add_filter('traydigita:assets:manifest:definition', 'traydigita_development_assets_manifest_definition', 10, 4);
 
-if (!function_exists('traydigita_development_plugins_loaded')) {
+if (!function_exists('traydigita_development_plugins_before_init')) {
     /**
      * @noinspection PhpMissingReturnTypeInspection
      */
-    function traydigita_development_plugins_loaded($traydigita)
+    function traydigita_development_plugins_before_init($traydigita)
     {
         /**
          * @var TrayDigita\WP\Headless\Resource\TrayDigita $traydigita
@@ -69,4 +69,4 @@ if (!function_exists('traydigita_development_plugins_loaded')) {
         return $traydigita;
     }
 }
-add_action('traydigita:init', 'traydigita_development_plugins_loaded');
+add_action('traydigita:before_init', 'traydigita_development_plugins_before_init');

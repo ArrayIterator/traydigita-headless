@@ -5,24 +5,31 @@ namespace TrayDigita\WP\Headless\Resource\Components;
 
 use ReflectionClass;
 use Throwable;
+use TrayDigita\WP\Headless\Resource\Abstracts\AbstractCoreExtension;
 use TrayDigita\WP\Headless\Resource\Abstracts\AbstractExtension;
 use TrayDigita\WP\Headless\Resource\Exceptions\InvalidOperationException;
+use TrayDigita\WP\Headless\Resource\Interfaces\CoreExtensionInterface;
 use TrayDigita\WP\Headless\Resource\Interfaces\ExtensionInterface;
 use TrayDigita\WP\Headless\Resource\Interfaces\ExtensionsInterface;
 use TrayDigita\WP\Headless\Resource\Utils\Callback;
+use TrayDigita\WP\Headless\Resource\Utils\Time;
+use function array_reverse;
+use function array_shift;
 use function class_exists;
+use function count;
 use function get_class;
 use function is_array;
 use function is_int;
 use function is_object;
 use function is_string;
 use function ltrim;
-use function microtime;
+use function str_replace;
 use function strtolower;
 use function time;
 use function uasort;
+use const DIRECTORY_SEPARATOR;
 
-class Extensions implements ExtensionsInterface
+final class Extensions implements ExtensionsInterface
 {
     /**
      * Option name for storing active extensions
@@ -75,7 +82,12 @@ class Extensions implements ExtensionsInterface
 
     /**
      * @var array{
-     *      prepare: array{
+     *      time: array{
+     *          start: float,
+     *          end: float,
+     *          duration: float
+     *     },
+     *     prepare: array{
      *          start: float,
      *          end: float,
      *          duration: float
@@ -85,7 +97,7 @@ class Extensions implements ExtensionsInterface
      *         end: float,
      *         duration: float
      *     }
-     * } $bootTime The time when the extension collection was booted.
+     * }[] $bootTime The time when the extension collection was booted.
      */
     private array $bootTime;
 
@@ -98,10 +110,27 @@ class Extensions implements ExtensionsInterface
 
     /**
      * @template T of ExtensionInterface
-     * @var array<lowercase-string<class-string<T>>, ReflectionClass<T>|false> $reflectionCaches
+     * @var array<lowercase-string<class-string<T>>, ReflectionClass<T>> $reflectionCaches
      *      The reflection caches for the extensions.
      */
-    private static array $reflectionCaches;
+    private static array $reflectionCaches = [];
+
+    /**
+     * @var int MAXIMUM_VALID_CACHES The count of invalid reflections for the extensions.
+     */
+    private const MAXIMUM_VALID_CACHES = 500;
+
+    /**
+     * @var int MAXIMUM_INVALID_CACHES The count of invalid reflections for the extensions.
+     */
+    private const MAXIMUM_INVALID_CACHES = 1000;
+
+    /**
+     * @template T of ExtensionInterface
+     * @var array<lowercase-string<class-string<T>>, bool> $invalidReflections
+     *      The invalid reflections for the extensions.
+     */
+    private static array $invalidReflections = [];
 
     /**
      * Extensions constructor.
@@ -116,6 +145,23 @@ class Extensions implements ExtensionsInterface
     public function getContainer(): Container
     {
         return $this->container;
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function isCore(ExtensionInterface|string $extension): bool
+    {
+        $ref = $this->getReflection($extension);
+        if (!$ref) {
+            return false;
+        }
+        $file = $ref->getFileName();
+        if (DIRECTORY_SEPARATOR !== '/') {
+            $file = str_replace('\\', '/', $file);
+        }
+        return str_starts_with($file, $this->container->pluginDir)
+            && $ref->isSubclassOf(AbstractCoreExtension::class);
     }
 
     /**
@@ -160,22 +206,44 @@ class Extensions implements ExtensionsInterface
                 return null;
             }
             $extension = strtolower($class->reflection->getName());
+            if (count(self::$reflectionCaches) > self::MAXIMUM_VALID_CACHES) {
+                array_shift(self::$reflectionCaches);
+            }
             return self::$reflectionCaches[$extension] = $class->reflection;
         }
-
         $extension = strtolower(ltrim($class, '\\'));
         if (isset(self::$reflectionCaches[$extension])) {
-            return self::$reflectionCaches[$extension] ?: null;
+            return self::$reflectionCaches[$extension];
         }
         if (!class_exists($class)) {
             return null;
         }
-        self::$reflectionCaches[$class] = false;
-        $reflection = Callback::apply(static fn () => new ReflectionClass($class));
+        $extensionObject = $this->extensions[$extension] ?? null;
+        if ($extensionObject instanceof AbstractExtension) {
+            if (count(self::$reflectionCaches) > self::MAXIMUM_VALID_CACHES) {
+                array_shift(self::$reflectionCaches);
+            }
+            return self::$reflectionCaches[$extension] = $extensionObject->reflection;
+        }
+        if (isset(self::$invalidReflections[$extension])) {
+            return null;
+        }
+        if (count(self::$invalidReflections) > self::MAXIMUM_INVALID_CACHES) {
+            array_shift(self::$invalidReflections);
+        }
+        self::$invalidReflections[$class] = true;
+        $reflection = Callback::apply(static fn() => new ReflectionClass($class));
         if (!$reflection?->isInstantiable()
             || !$reflection?->isSubclassOf(AbstractExtension::class)
         ) {
             return null;
+        }
+        unset(self::$invalidReflections[$class]);
+        if (count(self::$reflectionCaches) > self::MAXIMUM_VALID_CACHES) {
+            array_shift(self::$reflectionCaches);
+        }
+        if (count(self::$reflectionCaches) > self::MAXIMUM_VALID_CACHES) {
+            array_shift(self::$reflectionCaches);
         }
         self::$reflectionCaches[$extension] = $reflection;
         $extension = strtolower($reflection->getName());
@@ -243,7 +311,18 @@ class Extensions implements ExtensionsInterface
         if (isset($this->loadedExtensions[$key])) {
             return false;
         }
-        if ($override || !isset($this->extensions[$key])) {
+        $exists = isset($this->extensions[$key]);
+        if ($override || !$exists) {
+            if (is_object($extension)) {
+                if (!$extension->isCore() || !$exists) {
+                    $this->extensions[$key] = $extension;
+                    return true;
+                }
+                return false;
+            }
+            if ($this->isCore($className)) {
+                $extension = new $className($this);
+            }
             $this->extensions[$key] = is_object($extension) ? $extension : $className;
             return true;
         }
@@ -270,12 +349,25 @@ class Extensions implements ExtensionsInterface
             );
         }
         $removedExtension = $this->extensions[$key];
+        if (is_string($removedExtension) && $this->isCore($removedExtension)) {
+            $removedExtension = $this->get($removedExtension);
+        }
+        if (is_object($removedExtension)) {
+            if ($removedExtension->isCore() && $removedExtension instanceof CoreExtensionInterface) {
+                if ($removedExtension->shouldBeActive()) {
+                    throw InvalidOperationException::extensionCoreCannotBeRemoved(
+                        'remove',
+                        $removedExtension
+                    );
+                }
+            }
+        }
         if ($strict && is_object($extension) && !is_string($removedExtension)) {
             if (!$this->sameValue($removedExtension, $extension)) {
                 return null;
             }
         }
-        unset($this->extensions[$key]);
+        unset($this->extensions[$key], $this->lazyDeactivatedExtensions[$key]);
         return $removedExtension;
     }
 
@@ -360,7 +452,13 @@ class Extensions implements ExtensionsInterface
         if (!$extension) {
             return null;
         }
-        $activeExtensions = $this->getActiveExtensions();
+        if ($extension instanceof CoreExtensionInterface && $extension->isCore()) {
+            // core can not be deactivated, but if it should be active, we can ignore it
+            if ($extension->shouldBeActive()) {
+                return null;
+            }
+        }
+        $activeExtensions = $this->getActiveExtensionData();
         $key = $this->makeLowercase($name);
         if (!isset($activeExtensions[$key])) {
             return null;
@@ -368,7 +466,10 @@ class Extensions implements ExtensionsInterface
         $timestamp = $activeExtensions[$key];
         unset($activeExtensions[$key]);
         $this->activeExtensionsData = $activeExtensions;
-        if (!isset($this->lazyDeactivatedExtensions[$key])) {
+        if (isset($this->activeExtensions[$key])) {
+            unset($this->activeExtensions[$key]);
+            unset($this->lazyDeactivatedExtensions[$key]);
+        } elseif (!isset($this->lazyDeactivatedExtensions[$key])) {
             $this->lazyDeactivatedExtensions[$key] = $extension;
         }
         $this->container->options->setOption(self::OPTION_NAME, $activeExtensions);
@@ -447,22 +548,27 @@ class Extensions implements ExtensionsInterface
     }
 
     /**
-     * @return ?array{
-     *     prepare: array{
-     *          start: float,
-     *          end: float,
-     *          duration: float
-     *     },
-     *     boot: array{
-     *          start: float,
-     *          end: float,
-     *          duration: float
-     *     }
-     * }
+     * @inheritdoc
      */
-    public function getBootTime(): ?array
+    public function getBootTimeNano(): array
     {
         return $this->bootTime ?? [];
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function shutdown(): void
+    {
+        $this->booted = false;
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function bootCount(): int
+    {
+        return count($this->bootTime ?? []);
     }
 
     /**
@@ -473,9 +579,16 @@ class Extensions implements ExtensionsInterface
         if ($this->isBooted()) {
             return;
         }
-        $this->bootTime = [
+        $this->bootTime ??= [];
+        $increment = count($this->bootTime ?? []);
+        $this->bootTime[$increment] = [
+            'time' => [
+                'start' => Time::nano(),
+                'end' => 0,
+                'duration' => 0,
+            ],
             'prepare' => [
-                'start' => microtime(true),
+                'start' => 0,
                 'end' => 0,
                 'duration' => 0,
             ],
@@ -485,24 +598,75 @@ class Extensions implements ExtensionsInterface
                 'duration' => 0,
             ]
         ];
+        $boot = &$this->bootTime[$increment];
         $this->booted = true;
-        $this->lazyDeactivatedExtensions = [];
-        $options = $this->container->get(Options::class);
-        $extensions = $this->getActiveExtensions();
+        $extensions = [];
+        $cores = [];
+        $activeExtensions = $this->getActiveExtensions();
+        foreach ($this->extensions as $key => $extension) {
+            $extension = is_object($extension) ? $extension : $this->get($key);
+            if (!$extension) {
+                continue;
+            }
+            if ($extension->isCore()) {
+                if ($extension->shouldBeActive()) {
+                    $extensions[$key] = $extension;
+                } elseif (isset($activeExtensions[$key])) {
+                    $cores[$key] = $extension;
+                }
+            }
+        }
         $update = false;
+        // sort by highest priority first
+        uasort($extensions, static fn($a, $b) => $b->getPriority() <=> $a->getPriority());
+        // cores should be sorted by highest priority first, but they should be added to the end of the list
+        uasort($cores, static fn($a, $b) => $b->getPriority() <=> $a->getPriority());
+
+        $boot['prepare']['start'] = Time::nano();
+        // execute cores after the extensions, but they should be added to the end of the list
         foreach ($extensions as $key => $extension) {
+            unset($this->extensions[$key]);
             try {
                 $extension->prepare($this);
+                $this->activeExtensions[$key] = $extension;
+                if (!isset($this->activeExtensionsData[$key])) {
+                    $this->activeExtensionsData[$key] = time();
+                    $update = true;
+                }
             } catch (Throwable $e) {
-                $update = true;
-                unset($extensions[$key], $this->activeExtensionsData[$key]);
+                $update = $update || isset($this->activeExtensionsData[$key]);
+                unset($this->activeExtensionsData[$key], $extensions[$key]);
                 $this->errors[$key] = $e;
             }
         }
-        $end = microtime(true);
-        $this->bootTime['prepare']['end'] = $end;
-        $this->bootTime['prepare']['duration'] = $end - $this->bootTime['prepare']['start'];
-        $this->bootTime['boot']['start'] = microtime(true);
+        foreach (array_reverse($cores) as $key => $extension) {
+            unset($this->extensions[$key], $cores[$key]);
+            $this->extensions = [$key => $extension] + $this->extensions;
+        }
+        foreach (array_reverse($extensions) as $key => $extension) {
+            unset($this->extensions[$key]);
+            $this->extensions = [$key => $extension] + $this->extensions;
+        }
+        $this->lazyDeactivatedExtensions = [];
+        $options = $this->container->get(Options::class);
+        foreach ($activeExtensions as $key => $extension) {
+            if (isset($extensions[$key])) {
+                continue;
+            }
+            try {
+                $extension->prepare($this);
+                $this->activeExtensions[$key] = $extension;
+                $extensions[$key] = $extension;
+            } catch (Throwable $e) {
+                $update = true;
+                unset(
+                    $this->activeExtensionsData[$key],
+                    $this->activeExtensions[$key]
+                );
+                $this->errors[$key] = $e;
+            }
+        }
+        $this->activeExtensions = $extensions;
         $activeExtensions = $this->activeExtensionsData;
         foreach ($activeExtensions as $key => $timestamp) {
             if (isset($extensions[$key])) {
@@ -519,11 +683,16 @@ class Extensions implements ExtensionsInterface
                 $extension->prepare($this);
                 $this->activeExtensionsData = $activeExtensions;
                 $extensions[$key] = $extension;
+                $this->activeExtensions[$key] = $extension;
             } catch (Throwable $e) {
                 unset($activeExtensions[$key]);
                 $this->errors[$key] = $e;
             }
         }
+
+        $boot['prepare']['end'] = Time::nano();
+        $boot['prepare']['duration'] = $boot['prepare']['end'] - $boot['prepare']['start'];
+        $boot['boot']['start'] = Time::nano();
         foreach ($extensions as $key => $extension) {
             try {
                 $this->activeExtensionsData = $activeExtensions;
@@ -537,11 +706,15 @@ class Extensions implements ExtensionsInterface
                 $this->errors[$key] = $e;
             }
         }
-        $this->bootTime['boot']['end'] = microtime(true);
-        $this->bootTime['boot']['duration'] = $this->bootTime['boot']['end'] - $this->bootTime['boot']['start'];
+        $boot['boot']['end'] = Time::nano();
+        $boot['boot']['duration'] = $boot['boot']['end'] - $boot['boot']['start'];
         $this->activeExtensionsData = $activeExtensions;
+        $this->activeExtensions = $extensions; // re-set active extensions to the final list
         if ($update) {
             $options->setOption(self::OPTION_NAME, $activeExtensions);
         }
+        $boot['time']['end'] = Time::nano();
+        $boot['time']['duration'] = $boot['time']['end'] - $boot['time']['start'];
+        unset($boot);
     }
 }

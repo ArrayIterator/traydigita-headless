@@ -3,13 +3,15 @@ declare(strict_types=1);
 
 namespace TrayDigita\WP\Headless\Extensions;
 
-use TrayDigita\WP\Headless\Resource\Abstracts\AbstractExtension;
+use TrayDigita\WP\Headless\Resource\Abstracts\AbstractCoreExtension;
+use function __;
 
-class PopularPosts extends AbstractExtension
+final class PopularPosts extends AbstractCoreExtension
 {
-    protected string $version = '1.0.0';
-
-    protected ?string $homepage = 'https://traydigita.com';
+    /**
+     * @var int $priority The priority of the core extension
+     */
+    protected int $priority = 25;
 
     /**
      * @inheritdoc

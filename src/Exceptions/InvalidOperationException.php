@@ -48,6 +48,8 @@ class InvalidOperationException extends LogicException implements InvalidOperati
     }
 
     /**
+     * Exception for invalid user operation
+     *
      * @param string $operation
      * @return static
      */
@@ -58,6 +60,26 @@ class InvalidOperationException extends LogicException implements InvalidOperati
             sprintf(
                 'Cannot %s because the user is invalid',
                 $operation
+            )
+        );
+    }
+
+    /**
+     * Cannot remove core extension exception
+     *
+     * @param string $string
+     * @param ExtensionInterface|class-string<ExtensionInterface> $extension
+     * @return static
+     */
+    public static function extensionCoreCannotBeRemoved(
+        string $string,
+        string|ExtensionInterface $extension
+    ): static {
+        return new static(
+            sprintf(
+                'Cannot %s extension %s because it is a core extension',
+                $string,
+                get_class($extension)
             )
         );
     }

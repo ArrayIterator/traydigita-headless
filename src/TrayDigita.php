@@ -93,7 +93,11 @@ HTML;
             return;
         }
         $this->initialized = true;
+
+        do_action('traydigita:before_init', $this);
         do_action('traydigita:init', $this);
+        do_action('traydigita:after_init', $this);
+
         add_action('admin_menu', [$this->admin_menu, 'dispatchHook']);
         add_action('rest_api_init', [$this->rest, 'dispatchHook']);
     }

@@ -3,16 +3,29 @@ declare(strict_types=1);
 
 namespace TrayDigita\WP\Headless\Extensions;
 
-use TrayDigita\WP\Headless\Resource\Abstracts\AbstractExtension;
+use TrayDigita\WP\Headless\Resource\Abstracts\AbstractCoreExtension;
+use function __;
 
-class GraphQL extends AbstractExtension
+final class GraphQL extends AbstractCoreExtension
 {
-    protected string $name = 'GraphQL';
+    /**
+     * @inheritdoc
+     */
+    protected int $priority = 50;
 
-    protected string $version = '1.0.0';
+    /**
+     * @inheritdoc
+     */
+    public function getName(): string
+    {
+        return $this->name ??= __('GraphQL Integration', 'traydigita');
+    }
 
+    /**
+     * @inheritdoc
+     */
     public function getDescription(): string
     {
-        return $this->description ??= __('GraphQL extension for Headless WordPress', 'traydigita');
+        return $this->description ??= __('GraphQL extension for WP GraphQL plugin support', 'traydigita');
     }
 }

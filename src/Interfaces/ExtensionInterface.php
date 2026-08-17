@@ -18,6 +18,13 @@ interface ExtensionInterface
     public function __construct(ExtensionsInterface $extensions);
 
     /**
+     * Check if the extension is a core extension
+     *
+     * @return bool
+     */
+    public function isCore() : bool;
+
+    /**
      * Get the extensions collection
      *
      * @return ExtensionsInterface
@@ -100,4 +107,11 @@ interface ExtensionInterface
      * @param ExtensionsInterface $extensions
      */
     public function prepare(ExtensionsInterface $extensions);
+
+    /**
+     * Get the logo of the extension
+     *
+     * @return string|null
+     */
+    public function getLogo() : ?string;
 }

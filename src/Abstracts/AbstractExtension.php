@@ -5,21 +5,23 @@ namespace TrayDigita\WP\Headless\Resource\Abstracts;
 
 use ReflectionObject;
 use Throwable;
+use TrayDigita\WP\Headless\Resource\Components\Extensions;
 use TrayDigita\WP\Headless\Resource\Interfaces\ExtensionInterface;
 use TrayDigita\WP\Headless\Resource\Interfaces\ExtensionsInterface;
 use function add_action;
 use function array_filter;
+use function debug_backtrace;
 use function determine_locale;
 use function did_action;
 use function dirname;
 use function doing_action;
+use function get_class;
 use function load_textdomain;
-use function ltrim;
 use function path_is_absolute;
 use function plugin_basename;
 use function remove_action;
-use function str_starts_with;
 use function trim;
+use const DEBUG_BACKTRACE_IGNORE_ARGS;
 
 abstract class AbstractExtension implements ExtensionInterface
 {
@@ -73,9 +75,9 @@ abstract class AbstractExtension implements ExtensionInterface
     protected string $domainPath;
 
     /**
-     * @var bool $loaded Whether the extension has been loaded or not.
+     * @var bool $booted Whether the extension has been loaded or not.
      */
-    private bool $loaded;
+    private bool $booted;
 
     /**
      * @var bool $prepared Whether the extension has been prepared or not.
@@ -90,7 +92,7 @@ abstract class AbstractExtension implements ExtensionInterface
     /**
      * @var bool $isCore Whether the extension is a core extension or not.
      */
-    public readonly bool $isCore;
+    private bool $isCore;
 
     /**
      * @var string $basename The extension basename.
@@ -108,14 +110,54 @@ abstract class AbstractExtension implements ExtensionInterface
     final public function __construct(public readonly ExtensionsInterface $extensions)
     {
         $this->reflection = new ReflectionObject($this);
-        $traydigita = $extensions->getContainer()->traydigita;
-        $this->basename = plugin_basename($this->reflection->getFileName());
-        $this->isCore = str_starts_with($this->basename, $traydigita->pluginBasename);
+        $file = $this->reflection->getFileName();
+        $this->basename = plugin_basename($file);
         if (did_action('after_setup_theme') || doing_action('after_setup_theme')) {
             $this->initialize();
         } else {
             add_action('after_setup_theme', [$this, 'initialize'], 0);
         }
+    }
+
+    /**
+     * Should the extension be active. This method checks if the extension
+     * is a core extension and if it should be active.
+     *
+     * @return bool
+     */
+    final public function shouldBeActive(): bool
+    {
+        return !$this->isCore() || $this->coreShouldBeActive();
+    }
+
+    /**
+     * Get the priority of the core extension. This method is only called if the extension
+     * is a core extension and should be active.
+     *
+     * @return int
+     */
+    public function getPriority(): int
+    {
+        return 0;
+    }
+
+    /**
+     * Check if core extension should be active. This method is only called if the extension
+     * is a core extension and should be active.
+     *
+     * @return bool
+     */
+    protected function coreShouldBeActive(): bool
+    {
+        return false;
+    }
+
+    /**
+     * @inheritdoc
+     */
+    final public function isCore(): bool
+    {
+        return $this->isCore ??= $this->extensions->isCore($this);
     }
 
     /**
@@ -145,11 +187,9 @@ abstract class AbstractExtension implements ExtensionInterface
         $directory = $directory ? trim($directory) : null;
         if ($directory && $domain) {
             try {
-                $objectDirectory = dirname($this->reflection->getFileName());
                 $directory = path_is_absolute($directory)
-                    ? $directory
-                    : $objectDirectory . '/' . ltrim($directory, '/\\');
-                $directory = trailingslashit($directory);
+                    ? trailingslashit($directory)
+                    : dirname($this->reflection->getFileName()) . '/' . trim($directory, '/\\') . '/';
                 $locale = determine_locale();
                 $fileName = sprintf('%s-%s.mo', $domain, $locale);
                 $filePath = $directory . $fileName;
@@ -248,7 +288,7 @@ abstract class AbstractExtension implements ExtensionInterface
      */
     final public function boot(ExtensionsInterface $extensions): void
     {
-        if (!empty($this->loaded)
+        if (!empty($this->booted)
             // strict comparison to ensure the same instance of ExtensionsInterface is used
             || $extensions !== $this->extensions
         ) {
@@ -259,7 +299,12 @@ abstract class AbstractExtension implements ExtensionInterface
         if (!$extensions->has($this, true)) {
             return;
         }
-        $this->loaded = true;
+        $debugBoot = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2)[1] ?? [];
+        $className = $debugBoot['class'] ?? null;
+        if ($className !== Extensions::class) {
+            return; // skip if the boot method is not called from the Extensions class
+        }
+        $this->booted = true;
         if ($extensions->booted($this, true)) {
             return;
         }
@@ -275,22 +320,38 @@ abstract class AbstractExtension implements ExtensionInterface
     final public function prepare(ExtensionsInterface $extensions): void
     {
         if (!empty($this->prepared)
-            || !empty($this->loaded)
+            || !empty($this->booted)
             // strict comparison to ensure the same instance of ExtensionsInterface is used
             || $extensions !== $this->extensions
         ) {
             return;
         }
         // skip if the extension is not registered in the collection
-        if (!$extensions->has($this, true)
-            || $extensions->booted($this, true)
-        ) {
+        if (!$extensions->has($this, true) || $extensions->booted($this, true)) {
             return;
+        }
+        $debugBoot = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2)[1] ?? [];
+        $className = $debugBoot['class'] ?? null;
+        if (!$className || $className !== Extensions::class && $className !== __CLASS__) {
+            return; // skip if the boot method is not called from the Extensions class
         }
         $this->prepared = true;
         $this->doPrepare();
     }
 
+    /**
+     * @inheritdoc
+     */
+    public function getLogo() : ?string
+    {
+        return null;
+    }
+
+    /**
+     * Load the extension
+     *
+     * @return void
+     */
     protected function doLoad()
     {
     }

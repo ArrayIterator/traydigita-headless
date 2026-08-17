@@ -11,7 +11,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Throwable;
 use TrayDigita\WP\Headless\Resource\Database\WordPressDatabase;
 use TrayDigita\WP\Headless\Resource\Database\WPDB;
-use TrayDigita\WP\Headless\Resource\Interfaces\ExtensionInterface;
+use TrayDigita\WP\Headless\Resource\Interfaces\ExtensionsInterface;
 use TrayDigita\WP\Headless\Resource\Networks\Cloudflare;
 use TrayDigita\WP\Headless\Resource\Networks\Ip;
 use TrayDigita\WP\Headless\Resource\Networks\UserAgent;
@@ -31,7 +31,7 @@ use function wp_normalize_path;
  * @property-read ServerRequestInterface $server_request
  * @property-read ServerRequestInterface $serverRequest
  * @property-read ServerRequestInterface $request
- * @property-read ExtensionInterface $extensions
+ * @property-read ExtensionsInterface $extensions
  * @property-read Feature $feature
  * @property-read TrayDigita $traydigita
  * @property-read Assets $assets
@@ -158,18 +158,18 @@ class Container implements ContainerInterface
             // libs
             Assets::class => autowire(Assets::class),
             'assets' => get(Assets::class),
-            ExtensionInterface::class => autowire(Extensions::class),
             Feature::class => autowire(Feature::class),
             'feature' => get(Feature::class),
             TrayDigita::class => autowire(TrayDigita::class),
             'traydigita' => get(TrayDigita::class),
-            Extensions::class => autowire(Extensions::class),
-            'extensions' => get(ExtensionInterface::class),
             Attributes::class => autowire(Attributes::class),
             'attributes' => get(Attributes::class),
             AdminMenu::class => autowire(AdminMenu::class),
             'admin_menu' => get(AdminMenu::class),
             'adminMenu' => get(AdminMenu::class),
+            ExtensionsInterface::class => autowire(Extensions::class),
+            Extensions::class => autowire(Extensions::class),
+            'extensions' => get(ExtensionsInterface::class),
             KeyStorage::class => autowire(KeyStorage::class),
             'key_storage' => get(KeyStorage::class),
             'keyStorage' => get(KeyStorage::class),

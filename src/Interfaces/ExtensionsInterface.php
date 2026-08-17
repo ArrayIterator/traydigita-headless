@@ -117,6 +117,29 @@ interface ExtensionsInterface
     public function getBootErrors() : array;
 
     /**
+     * Get the boot time of the extension collection, this returning nanoseconds integer
+     *
+     * @return array{
+     *     time: array{
+     *           start: int,
+     *           end: int,
+     *           duration: int
+     *      },
+     *     prepare: array{
+     *          start: int,
+     *          end: int,
+     *          duration: int
+     *     },
+     *     boot: array{
+     *          start: int,
+     *          end: int,
+     *          duration: int
+     *     }
+     * }[]
+     */
+    public function getBootTimeNano() : array;
+
+    /**
      * Check if the extension collection is booted
      *
      * @return bool
@@ -127,4 +150,25 @@ interface ExtensionsInterface
      * Load the extension collection
      */
     public function boot();
+
+    /**
+     * Shutdown the extension collection
+     */
+    public function shutdown();
+
+    /**
+     * Get the number of booted extensions
+     *
+     * @return int
+     */
+    public function bootCount(): int;
+
+    /**
+     * Check if the extension is a core extension
+     *
+     * @template T of ExtensionInterface
+     * @param T|class-string<T> $extension
+     * @return bool
+     */
+    public function isCore(ExtensionInterface|string $extension): bool;
 }

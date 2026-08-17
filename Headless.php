@@ -3,11 +3,11 @@ declare(strict_types=1);
 
 namespace TrayDigita\WP\Headless;
 
-use Throwable;
+use TrayDigita\WP\Headless\Extensions\Core;
 use TrayDigita\WP\Headless\Extensions\GraphQL;
 use TrayDigita\WP\Headless\Extensions\PopularPosts;
+use TrayDigita\WP\Headless\Extensions\TokenizerAuth;
 use TrayDigita\WP\Headless\Resource\Components\Container;
-use TrayDigita\WP\Headless\Resource\Components\Extensions;
 use TrayDigita\WP\Headless\Resource\TrayDigita;
 use TrayDigita\WP\Headless\Resource\Utils\Callback;
 use function add_action;
@@ -59,6 +59,11 @@ final class Headless
     private bool $headlessInitialized = false;
 
     /**
+     * @var bool $lateHeadlessInitialized indicates whether the late headless initialization has been completed
+     */
+    private bool $lateHeadlessInitialized = false;
+
+    /**
      * @var bool $isDev indicates whether the plugin is in development mode
      */
     private bool $isDev;
@@ -67,7 +72,9 @@ final class Headless
      * @var array<class-string<Resource\Abstracts\AbstractExtension>>
      */
     public const CORE_EXTENSIONS = [
+        TokenizerAuth::class,
         GraphQL::class,
+        Core::class,
         PopularPosts::class
     ];
 
@@ -132,11 +139,11 @@ final class Headless
             return null;
         }
         if (isset($this->serverJson)) {
-            return $this->serverJson?:null;
+            return $this->serverJson ?: null;
         }
         $this->serverJson = Callback::apply(function ($file) {
             return file_exists($file) ? json_decode(file_get_contents($file), true) : null;
-        }, $this->serverJsonFile)?:null;
+        }, $this->serverJsonFile) ?: null;
         return $this->serverJson;
     }
 
@@ -152,9 +159,12 @@ final class Headless
             return $this;
         }
         $this->initialized = true;
-        remove_action('plugin_loaded', [$this, 'hookPluginLoaded']);
+
         do_action('traydigita:headless_init', $this);
-        add_action('traydigita:init', [$this, 'hookHeadlessInit'], PHP_INT_MIN);
+
+        add_action('traydigita:before_init', [$this, 'hookHeadlessInit'], PHP_INT_MIN);
+        add_action('traydigita:after_init', [$this, 'hookHeadlessAfterInit'], PHP_INT_MAX);
+
         if (doing_action('plugins_loaded') || did_action('plugins_loaded')) {
             $this->traydigita->init();
         } else {
@@ -174,21 +184,43 @@ final class Headless
         if ($this->headlessInitialized) {
             return $result;
         }
-        if (!doing_action('traydigita:headless_init')) {
+        if (!doing_action('traydigita:before_init')) {
             return $result;
         }
         $this->headlessInitialized = true;
+        // remove the action to prevent multiple calls
+        remove_action('traydigita:before_init', [$this, __FUNCTION__], PHP_INT_MIN);
         $extensions = $this->extensions;
-        if (!$extensions instanceof Extensions) {
+        foreach (self::CORE_EXTENSIONS as $extension) {
+            Callback::apply([$extensions, 'register'], $extension);
+        }
+        return $result;
+    }
+
+    /**
+     * Hook to re-initialize extensions after headless initialization
+     *
+     * @param mixed $result
+     * @return mixed
+     */
+    public function hookHeadlessAfterInit(mixed $result): mixed
+    {
+        if ($this->lateHeadlessInitialized) {
             return $result;
         }
-        foreach (self::CORE_EXTENSIONS as $extension) {
-            try {
-                $extensions->register($extension);
-            } catch (Throwable) {
-                // Ignore any exceptions thrown during registration
-            }
+        if (!doing_action('traydigita:after_init')) {
+            return $result;
         }
+        $this->lateHeadlessInitialized = true;
+
+        // remove the action to prevent multiple calls
+        remove_action('traydigita:after_init', [$this, __FUNCTION__], PHP_INT_MAX);
+
+        $extensions = $this->extensions;
+        if ($extensions->isBooted()) {
+            $extensions->shutdown(); // do shut down first, then boot again
+        }
+        $extensions->boot();
         return $result;
     }
 
