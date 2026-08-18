@@ -8,6 +8,7 @@ use TrayDigita\WP\Headless\Extensions\GraphQL;
 use TrayDigita\WP\Headless\Extensions\PopularPosts;
 use TrayDigita\WP\Headless\Extensions\TokenizerAuth;
 use TrayDigita\WP\Headless\Resource\Components\Container;
+use TrayDigita\WP\Headless\Resource\Networks\Ip;
 use TrayDigita\WP\Headless\Resource\TrayDigita;
 use TrayDigita\WP\Headless\Resource\Utils\Callback;
 use function add_action;
@@ -20,8 +21,10 @@ use function file_exists;
 use function file_get_contents;
 use function is_string;
 use function json_decode;
+use function print_r;
 use function remove_action;
 use function str_starts_with;
+use function var_dump;
 use const DEBUG_BACKTRACE_IGNORE_ARGS;
 use const DIRECTORY_SEPARATOR;
 use const PHP_INT_MIN;
@@ -123,7 +126,7 @@ final class Headless
         $this->traydigita = (new Container(
             $this->isDev(),
             self::VERSION,
-            $this->getServerJson(),
+            self::DEVELOPMENT_SERVER_FILE,
             $plugin_file,
             self::MAIN_SCRIPT_NAME
         ))->traydigita;
@@ -141,16 +144,17 @@ final class Headless
      */
     public function getServerJson(): ?array
     {
-        if (!$this->isDev()) {
-            return null;
-        }
         if (isset($this->serverJson)) {
             return $this->serverJson ?: null;
         }
+        $this->serverJson = false;
+        if (!$this->isDev() || !file_exists($this->serverJsonFile)) {
+            return null;
+        }
         $this->serverJson = Callback::apply(function ($file) {
             return file_exists($file) ? json_decode(file_get_contents($file), true) : null;
-        }, $this->serverJsonFile) ?: null;
-        return $this->serverJson;
+        }, $this->serverJsonFile) ?: false;
+        return $this->serverJson??null;
     }
 
     /**
@@ -242,7 +246,7 @@ final class Headless
             defined('TRAYDIGITA_DEBUG')
             && \TRAYDIGITA_DEBUG
             && file_exists($this->developmentFile)
-            && file_exists(self::DEVELOPMENT_SERVER_FILE);
+            && (new Ip())->isBogon();
         return $this->isDev;
     }
 

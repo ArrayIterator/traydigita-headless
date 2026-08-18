@@ -101,7 +101,7 @@ final class AuthenticatorPayload implements Stringable
      */
     public function isBrowserMatch(string|UserAgent|ClientBrowserType|ServerRequestInterface $browserType): bool
     {
-        return $this->authenticator->hashEqual(
+        return $this->authenticator->hash->equals(
             $this->browserSignature,
             $this->createBrowserSignature($this->random, $this->timestamp, $browserType)
         );
@@ -109,7 +109,7 @@ final class AuthenticatorPayload implements Stringable
 
     public function isPathMatch(RequestInterface|UserAgent|string|null $uri = null): bool
     {
-        return $this->authenticator->hashEqual(
+        return $this->authenticator->hash->equals(
             $this->pathSignature,
             $this->createPathSignature($this->random, $this->timestamp, $uri)
         );

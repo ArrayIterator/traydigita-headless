@@ -6,7 +6,7 @@
     "author": "",
     "type": "module",
     "scripts": {
-        "dev": "rspack dev",
+        "dev": "RUST_BACKTRACE=full rspack dev",
         "build": "rspack build"
     },
     "dependencies": {
@@ -26,6 +26,7 @@
         "glob": "^13.0.6",
         "postcss": "^8.5.26",
         "postcss-loader": "^8.2.1",
+        "selfsigned": "^5.5.0",
         "tailwindcss": "^4.3.3"
     }
 }

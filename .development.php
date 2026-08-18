@@ -28,21 +28,17 @@ if (!function_exists('traydigita_development_assets_manifest_definition')) {
      * @param TrayDigita\WP\Headless\Resource\Components\Container $container
      * @return TDef
      * @noinspection PhpMissingParamTypeInspection
-     * @noinspection PhpMissingReturnTypeInspection
      */
-    function traydigita_development_assets_manifest_definition($definition, $name, $type, $container)
+    function traydigita_development_assets_manifest_definition(array $definition, string $name, string $type, $container) : array
     {
-        if (!is_array($definition)) {
-            return $definition;
-        }
         if (!$container->is_development) {
             return $definition;
         }
-        $json = $container->developmentServersJson;
-        if (!$json || !is_string($json['url'] ?? null)) {
+        $devInfo = $container->development_server_info->getStatus();
+        if (!$devInfo['running']) {
             return $definition;
         }
-        $url = trailingslashit($json['url']);
+        $url = trailingslashit($devInfo['url']);
         foreach ($definition['files'] as &$file) {
             $file['url'] = $url . $file['path'];
         }
@@ -52,6 +48,29 @@ if (!function_exists('traydigita_development_assets_manifest_definition')) {
     }
 }
 add_filter('traydigita:assets:manifest:definition', 'traydigita_development_assets_manifest_definition', 10, 4);
+
+if (!function_exists('traydigita_development_admin_menu_menu_title')) {
+    /**
+     * @param string $title
+     * @param TrayDigita\WP\Headless\Resource\Components\AdminMenu $adminMenu
+     * @return string
+     */
+    function traydigita_development_admin_menu_menu_title(string $title, TrayDigita\WP\Headless\Resource\Components\AdminMenu $adminMenu) : string
+    {
+        $status = $adminMenu->container->development_server_info->getStatus();
+        if ($status['running']) {
+            $title .= ' <span class="traydigita-dev-status-running"></span>';
+            return sprintf(
+                '<span class="traydigita-dev-status-menu-title" title="%s: %s">%s</span>',
+                __('Development Server Running', 'traydigita'),
+                esc_attr($status['url']),
+                $title
+            );
+        }
+        return $title;
+    }
+}
+add_filter('traydigita:admin_menu:menu_title', 'traydigita_development_admin_menu_menu_title', 10, 2);
 
 if (!function_exists('traydigita_development_plugins_before_init')) {
     /**

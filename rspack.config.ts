@@ -1,5 +1,3 @@
-// noinspection HttpUrlsUsage
-
 import {defineConfig} from "@rspack/cli";
 import {Compilation, Compiler, Configuration, SwcJsMinimizerRspackPlugin} from "@rspack/core";
 import {fileURLToPath} from "node:url";
@@ -55,9 +53,9 @@ class EntryManifestPlugin {
                             size: asset ? asset.source.size() : 0
                         };
                     });
-                    const jsFiles = filesDetails.filter(({file}) => file.endsWith(".js"));
+                    const jsFiles = filesDetails.filter(({file}) => file.endsWith(".js") && !file.includes("hot-update"));
                     const jsFile = jsFiles.map(({file}) => file)[0];
-                    const cssFiles = filesDetails.filter(({file}) => file.endsWith(".css"));
+                    const cssFiles = filesDetails.filter(({file}) => file.endsWith(".css") && !file.includes("hot-update"));
                     const cssFile = cssFiles.map(({file}) => file)[0];
                     if (jsFile) {
                         manifest[entryName]["js"] = {
@@ -90,7 +88,9 @@ class EntryManifestPlugin {
 }
 
 const files: Record<string, string> = {};
-const serverHost = '127.0.0.1';
+const serverHost = 'localhost';
+const scheme: 'http' | 'https' = 'http';
+const ws_scheme: 'ws' | 'wss' = 'ws';
 const serverPort = 3001;
 const aggregateTimeout = 500;
 
@@ -109,13 +109,15 @@ export default defineConfig((env, _argv): Configuration => {
     const mode = (env.RSPACK_SERVE ? 'development' : 'production');
     const isProduction = mode === "production";
     console.log(`Building for ${isProduction ? "production" : "development"} mode...`);
+
     return {
         mode,
         context: __dirname,
         entry: files,
         watchOptions: isProduction ? {} : {
             aggregateTimeout,
-            ignored: /^(?!.*[\\/]assets[\\/]).*\.(?!tsx?|css)$/
+            // ignored: ['**/node_modules/**', '**/vendor/**', '**/*.php', '**/*.hot-update.*']
+            ignored: /^(?!.*[\\/]assets[\\/]).*$|^(?=.*[\\/]assets[\\/]).*\.(?!(tsx?|css|svg|png|heic|avif|jpe?g)$)[^.]+$/i
         },
         optimization: {
             minimize: isProduction,
@@ -132,19 +134,17 @@ export default defineConfig((env, _argv): Configuration => {
         output: {
             path: path.resolve(__dirname, "dist"),
             clean: true,
-            chunkFormat: 'module',
-            chunkLoading: 'import',
-            module: true,
-            library: {
-                type: 'modern-module',
-            },
+            chunkFormat: isProduction ? 'module' : 'array-push',
+            chunkLoading: isProduction ? 'import' : 'jsonp',
+            module: isProduction,
+            library: isProduction ? { type: 'modern-module' } : undefined,
             filename: isProduction ? "js/[name].[contenthash:8].js" : "js/[name].js",
             cssFilename: isProduction ? "css/[name].[contenthash:8].css" : "css/[name].css",
             assetModuleFilename: isProduction ? "images/[name].[contenthash:8][ext]" : "images/[name][ext]",
-            publicPath: isProduction ? "/" : `http://${serverHost}:${serverPort}/`,
+            publicPath: isProduction ? "/" : `${scheme}://${serverHost}:${serverPort}/`,
             crossOriginLoading: isProduction ? false : "anonymous",
-            uniqueName: "traydigita_headless",
-            hotUpdateGlobal: "webpackHotUpdatetraydigita_headless",
+            // uniqueName: "traydigita_headless",
+            // hotUpdateGlobal: "webpackHotUpdatetraydigita_headless",
         },
         devtool: isProduction ? false : "cheap-module-source-map",
         resolve: {
@@ -198,11 +198,11 @@ export default defineConfig((env, _argv): Configuration => {
         devServer: {
             host: serverHost,
             port: serverPort,
+            server: scheme,
             hot: true,
-            liveReload: false,
-            // liveReload: true,
+            liveReload: true,
             client: isProduction ? {} : {
-                webSocketURL: `ws://${serverHost}:${serverPort}/ws`,
+                webSocketURL: `${ws_scheme}://${serverHost}:${serverPort}/ws`,
                 overlay: true,
             },
             headers: {
@@ -210,25 +210,53 @@ export default defineConfig((env, _argv): Configuration => {
                 "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
                 "Access-Control-Allow-Headers": "X-Requested-With, content-type, Authorization"
             },
-            static: {
-                directory: path.resolve(__dirname, "dist"),
-                watch: false
-            },
+            static: [
+                {
+                    directory: path.resolve(__dirname, "dist"),
+                    watch: false
+                },
+            ],
             devMiddleware: {
                 writeToDisk: (filePath) => !filePath.toLowerCase().includes('hot-update')
             },
+            setupMiddlewares: (middlewares, devServer) => {
+                if (!devServer) {
+                    return middlewares;
+                }
+                fs.watch(__dirname, { recursive: true }, (eventType, filename) => {
+                    if (filename && filename.endsWith('.php')) {
+                        devServer.sendMessage(devServer.webSocketServer.clients, 'static-changed');
+                    }
+                });
+                return middlewares;
+            },
+            watchFiles: [
+                {
+                    paths: [
+                        '**/*.php',
+                    ],
+                    options: {
+                        ignored: [
+                            /node_modules/,
+                            /vendor/,
+                            '**/*.hot-update.*'
+                        ],
+                        usePolling: true,
+                        interval: aggregateTimeout
+                    }
+                }
+            ],
             allowedHosts: "all",
             onListening: (server) => {
                 const address = server.server.address();
                 if (address && typeof address === "object") {
-                    const host = address.address === "::" ? "localhost" : address.address;
                     const port = address.port;
                     // noinspection HttpUrlsUsage
                     const serverJson: ServerJsonType = {
-                        host,
+                        host: serverHost,
                         port,
                         environment: isProduction ? "production" : "development",
-                        url: `http://${host}:${port}`
+                        url: `${scheme}://${serverHost}:${port}`
                     };
                     fs.writeFileSync(serverFile, JSON.stringify(serverJson, null, 4));
                 }

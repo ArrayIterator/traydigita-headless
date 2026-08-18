@@ -10,11 +10,13 @@ use function array_any;
 use function did_action;
 use function doing_action;
 use function file_exists;
+use function filemtime;
 use function is_array;
 use function is_int;
 use function is_string;
 use function json_decode;
 use function ltrim;
+use function sha1;
 use function sprintf;
 use function str_ends_with;
 use function strlen;
@@ -207,13 +209,17 @@ class Assets implements HookInitInterface
         if (!isset($this->manifest) || ($this->manifestFile ?? '') !== ($manifestFile = $this->getManifestFile())) {
             $this->manifestFile = $manifestFile ?? $this->getManifestFile();
             if ($this->manifestFile && file_exists($this->manifestFile)) {
-                /**
-                 * @var string|false $manifest
-                 */
-                $manifest = Callback::apply('file_get_contents', $this->manifestFile);
-                $manifest = $manifest ? json_decode($manifest, true) : null;
-                if (is_array($manifest)) {
-                    $this->manifest = $manifest;
+                $time = filemtime($this->manifestFile);
+                if ($time) {
+//                    $signature = sha1();
+                    /**
+                     * @var string|false $manifest
+                     */
+                    $manifest = Callback::apply('file_get_contents', $this->manifestFile);
+                    $manifest = $manifest ? json_decode($manifest, true) : null;
+                    if (is_array($manifest)) {
+                        $this->manifest = $manifest;
+                    }
                 }
             }
             $this->manifest ??= [];

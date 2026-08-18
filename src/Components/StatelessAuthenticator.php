@@ -19,12 +19,14 @@ use TrayDigita\WP\Headless\Resource\Networks\UserAgent;
 use TrayDigita\WP\Headless\Resource\Utils\Random;
 use function bin2hex;
 use function get_current_user_id;
-use function hash_hmac;
+use function hex2bin;
+use function implode;
 use function is_string;
 use function pack;
 use function strlen;
 use function substr;
 use function trim;
+use function unpack;
 
 class StatelessAuthenticator
 {
@@ -34,9 +36,7 @@ class StatelessAuthenticator
 
     public const DEFAULT_EXPIRATION = 3600; // 1 hour
 
-    public const SEPARATOR = ':'; // Combined Key Separator
-
-    private string $keySeparator = StatelessTokenizer::SEPARATOR;
+    private string $keySeparator = KeyStorage::DEFAULT_SEPARATOR;
 
     /**
      * @var Duration $defaultExpiration The default expiration duration
@@ -56,17 +56,16 @@ class StatelessAuthenticator
     /**
      * StatelessAuthenticator constructor.
      *
-     * @param KeyStorage $keyStorage The key storage instance
      * @param UserAgent $userAgent The user agent instance
      * @param User $user The user instance
      * @param string $keySeparator The key separator (default is ':')
      */
     public function __construct(
         #[SensitiveParameter]
-        public readonly KeyStorage $keyStorage,
+        public readonly Hash $hash,
         public readonly UserAgent $userAgent,
         public readonly User $user,
-        string $keySeparator = self::SEPARATOR
+        string $keySeparator = KeyStorage::DEFAULT_SEPARATOR
     ) {
         $this->setKeySeparator($keySeparator);
         $this->defaultExpiration = new Duration(seconds: self::DEFAULT_EXPIRATION, immutable: true);
@@ -104,7 +103,7 @@ class StatelessAuthenticator
      */
     public function getCombinedKey(): string
     {
-        return $this->keyStorage->getAuthKey() . $this->getKeySeparator() . $this->keyStorage->getAuthSalt();
+        return $this->hash->keyStorage->getCombinedKey($this->getKeySeparator());
     }
 
     /**
@@ -117,7 +116,7 @@ class StatelessAuthenticator
      */
     public function hash(string $data, string $key, bool $raw = false): string
     {
-        return hash_hmac('sha256', $data, $key, $raw);
+        return $this->hash->hmac(Hash::SHA256, $data, $key, $raw);
     }
 
     /**
@@ -171,7 +170,7 @@ class StatelessAuthenticator
     public function getSaltBinary(): string
     {
         return $this->saltBinary ??= $this->hash(
-            $this->keyStorage->getAuthSalt(),
+            $this->hash->keyStorage->getAuthSalt(),
             $this->getCombinedKey(),
             true
         );
@@ -221,18 +220,6 @@ class StatelessAuthenticator
             $timestamp
         );
         return $this->hash($data, $key, true);
-    }
-
-    /**
-     * Compare two hashes in a timing-attack safe manner
-     *
-     * @param string $hash1
-     * @param string $hash2
-     * @return bool
-     */
-    public function hashEqual(string $hash1, string $hash2): bool
-    {
-        return $hash1 && $hash2 && hash_equals($hash1, $hash2);
     }
 
     /**
@@ -389,6 +376,12 @@ class StatelessAuthenticator
         );
     }
 
+    /**
+     * Parse the given token and return an AuthenticatorPayload object if valid
+     *
+     * @param string|AuthenticatorPayload $token
+     * @return AuthenticatorPayload|null
+     */
     public function parse(string|AuthenticatorPayload $token): ?AuthenticatorPayload
     {
         $token = $token instanceof AuthenticatorPayload ? $token->token : $token;
@@ -408,7 +401,7 @@ class StatelessAuthenticator
         $pathSignature = substr($payload, 16, 32);
         $comparedBrowserSignature = substr($payload, -32);
         // check browser signature first, if it doesn't match, return null
-        if (!$this->hashEqual($browserSignature, $comparedBrowserSignature)) {
+        if (!$this->hash->equals($browserSignature, $comparedBrowserSignature)) {
             return null;
         }
         $idBinding = substr($payload, 48, 32);
@@ -422,7 +415,7 @@ class StatelessAuthenticator
         $timestamp = unpack('J', $ts64)[1] ?? 0;
         $expired = unpack('J', $duration)[1] ?? 0;
         $tokenSign = $this->hashOuter($payload, $random, $timestamp);
-        if (!$this->hashEqual($signature, $tokenSign)) {
+        if (!$this->hash->equals($signature, $tokenSign)) {
             return null;
         }
         $user = $this->user->findOrEmpty($userId);
@@ -430,7 +423,7 @@ class StatelessAuthenticator
             return null;
         }
         $idBindingSign = $this->hashInner($u64, $random, $user, $timestamp);
-        if (!$this->hashEqual($idBinding, $idBindingSign)) {
+        if (!$this->hash->equals($idBinding, $idBindingSign)) {
             return null;
         }
         return new AuthenticatorPayload(

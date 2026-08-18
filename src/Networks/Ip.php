@@ -80,6 +80,7 @@ final class Ip implements Stringable
 
     /**
      * Ip constructor.
+     * If empty address is provided, it will use the REMOTE_ADDR from the server request or $_SERVER superglobal.
      *
      * @param string|null $address The IP address to filter
      * @param ServerRequestInterface|null $request The server request object

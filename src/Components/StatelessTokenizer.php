@@ -23,7 +23,7 @@ class StatelessTokenizer
 
     public function __construct(
         #[SensitiveParameter]
-        public readonly KeyStorage $keyStorage,
+        public readonly Hash $hash,
         int $expiration = self::DEFAULT_EXPIRATION,
         string $separator = self::SEPARATOR
     ) {
@@ -54,9 +54,14 @@ class StatelessTokenizer
         $this->expiration = max($expiration, self::MIN_EXPIRATION);
     }
 
+    /**
+     * Get Combined Key for Inner Signature
+     *
+     * @return string
+     */
     public function getCombinedKey(): string
     {
-        return $this->keyStorage->getAuthKey() . $this->getSeparator() . $this->keyStorage->getAuthSalt();
+        return $this->hash->keyStorage->getCombinedKey($this->getSeparator());
     }
 
     /**
@@ -89,7 +94,7 @@ class StatelessTokenizer
         $payloadPart = $random16 . $idBinding . $time8 . $exp8 . $user8;
 
         // 5. Final Outer Sign (32 bytes signature) - using salt, can be used as public verification
-        $finalSign = hash_hmac('sha256', $payloadPart, $this->keyStorage->getAuthSalt(), true);
+        $finalSign = $this->hash->hmacSha256($payloadPart, $this->hash->keyStorage->getAuthSalt(), true);
 
         // 6. Final Token (104 bytes -> 208 hex chars)
         $tokenHex = bin2hex($payloadPart . $finalSign);
@@ -119,7 +124,7 @@ class StatelessTokenizer
         $outerSignature = substr($bytes, 72, 32);
 
         // 1. Verify Outer Signature - Using salt
-        $expectedOuterSign = hash_hmac('sha256', $payloadPart, $this->keyStorage->getAuthSalt(), true);
+        $expectedOuterSign = $this->hash->hmacSha256($payloadPart, $this->hash->keyStorage->getAuthSalt(), true);
         if (!hash_equals($expectedOuterSign, $outerSignature)) {
             return null; // Integrity check failed
         }
@@ -136,7 +141,7 @@ class StatelessTokenizer
 
         $combinedKey = $this->getCombinedKey();
         // 3. Verify Inner Signature
-        $expectedInnerSign = hash_hmac('sha256', $user8, $combinedKey, true);
+        $expectedInnerSign = $this->hash->hmacSha256($user8, $combinedKey, true);
         if (!hash_equals($expectedInnerSign, $innerSignature)) {
             return null; // Identity binding failed
         }

@@ -13,7 +13,9 @@ use function add_action;
 use function add_menu_page;
 use function apply_filters;
 use function array_map;
+use function array_search;
 use function class_exists;
+use function current_action;
 use function did_action;
 use function do_action;
 use function doing_action;
@@ -25,7 +27,9 @@ use function is_subclass_of;
 use function ltrim;
 use function remove_action;
 use function remove_menu_page;
+use function str_starts_with;
 use function strtolower;
+use function substr;
 use function wp_enqueue_script_module;
 use function wp_enqueue_style;
 use function wp_localize_script;
@@ -66,7 +70,7 @@ class AdminMenu implements HookAdminEnqueueScriptsInterface
     private array $submenus;
 
     /**
-     * @var array<lowercase-string<class-string<AbstractAdminPage>, array{slug: string, hook: string}>
+     * @var array<lowercase-string<class-string<AbstractAdminPage>, string>
      */
     private array $submenuHooks;
 
@@ -81,6 +85,11 @@ class AdminMenu implements HookAdminEnqueueScriptsInterface
     private string $capability;
 
     /**
+     * @var ?AbstractAdminPage $currentSubmenu The current submenu for the admin page
+     */
+    private ?AbstractAdminPage $currentSubmenu;
+
+    /**
      * @inheritdoc
      */
     public function adminEnqueueScriptHook(): void
@@ -88,14 +97,20 @@ class AdminMenu implements HookAdminEnqueueScriptsInterface
         if (!doing_action('admin_enqueue_scripts')) {
             return;
         }
+        $hooks = $this->submenuHooks ?? [];
         $handle = $this->container->adminScriptHandle;
+        foreach ($hooks as $hook) {
+            if (did_action("load-$hook")) {
+                wp_enqueue_script_module($handle);
+                wp_localize_script(
+                    $handle,
+                    self::LOCALIZE_KEY,
+                    array_map(fn($submenu) => $this->createLocalizeData($submenu), $this->getSubmenus())
+                );
+                break;
+            }
+        }
         wp_enqueue_style($handle);
-        wp_enqueue_script_module($handle);
-        wp_localize_script(
-            $handle,
-            self::LOCALIZE_KEY,
-            array_map(fn ($submenu) => $this->createLocalizeData($submenu), $this->getSubmenus())
-        );
     }
 
     /**
@@ -139,6 +154,8 @@ class AdminMenu implements HookAdminEnqueueScriptsInterface
             $submenu->deregister($this);
             $hook = $submenu->register($this);
             if (!empty($hook)) {
+                remove_action("load-$hook", [$this, 'subMenuHook'], PHP_INT_MIN);
+                add_action("load-$hook", [$this, 'subMenuHook'], PHP_INT_MIN);
                 $this->submenuHooks[$key] = $hook;
             }
         }
@@ -209,7 +226,7 @@ class AdminMenu implements HookAdminEnqueueScriptsInterface
     public function getPageTitle(): string
     {
         $this->pageTitle ??= __('TrayDigita Headless', 'traydigita');
-        $title = apply_filters('traydigita:components:admin_menu_page_title', $this->pageTitle);
+        $title = apply_filters('traydigita:admin_menu:page_title', $this->pageTitle, $this);
         if (!is_string($title) || empty($title)) {
             $title = $this->pageTitle;
         }
@@ -224,7 +241,7 @@ class AdminMenu implements HookAdminEnqueueScriptsInterface
     public function getMenuTitle(): string
     {
         $this->menuTitle ??= __('TrayDigita', 'traydigita');
-        $tile = apply_filters('traydigita:components:admin_menu_menu_title', $this->menuTitle);
+        $tile = apply_filters('traydigita:admin_menu:menu_title', $this->menuTitle, $this);
         if (!is_string($tile) || empty($tile)) {
             $tile = $this->menuTitle;
         }
@@ -239,7 +256,7 @@ class AdminMenu implements HookAdminEnqueueScriptsInterface
     public function getIcon(): string
     {
         $default = $this->container->traydigita->svgIcon(['padding' => 20], true);
-        $icon = apply_filters('traydigita:components:admin_menu_icon', $default);
+        $icon = apply_filters('traydigita:admin_menu:icon', $default, $this);
         if (!is_string($icon) || empty($icon)) {
             $icon = $default;
         }
@@ -320,10 +337,36 @@ class AdminMenu implements HookAdminEnqueueScriptsInterface
     }
 
     /**
+     * The submenu hook
+     * @return void
+     */
+    public function subMenuHook(): void
+    {
+        if (!empty($this->currentSubmenu) || empty($this->submenuHooks)) {
+            return;
+        }
+        $action = current_action();
+        if (!$action || !str_starts_with($action, "load-")) {
+            return;
+        }
+        $hook = substr($action, 5);
+        $key = array_search($hook, $this->submenuHooks, true);
+        if (!$key) {
+            return;
+        }
+        $submenu = $this->getSubmenus()[$key] ?? null;
+        $this->currentSubmenu = $submenu;
+        if (!$submenu) {
+            return;
+        }
+        do_action("traydigita:admin_menu:load:submenu", $submenu, $this);
+    }
+
+    /**
      * @param AbstractAdminPage $adminPage
      * @return array
      */
-    public function createLocalizeData(AbstractAdminPage $adminPage) : array
+    public function createLocalizeData(AbstractAdminPage $adminPage): array
     {
         $localize = [
             'slug' => $adminPage->getSlug(),
@@ -355,7 +398,7 @@ class AdminMenu implements HookAdminEnqueueScriptsInterface
             $localize = $localized;
         }
         // make translations object
-        $localize['translations'] = (object) $localize['translations'];
+        $localize['translations'] = (object)$localize['translations'];
         return $localize;
     }
 

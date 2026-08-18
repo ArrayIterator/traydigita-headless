@@ -27,7 +27,7 @@ class Callback
     ) : mixed {
         $error = null;
         try {
-            set_error_handler(function (int $errNo, string $errorStr, string $errFile, int $errLine) use (&$error) {
+            set_error_handler(static function (int $errNo, string $errorStr, string $errFile, int $errLine) use (&$error) {
                 $error = new CaughtException($errorStr, 0, $errNo, $errFile, $errLine);
             });
             return $callback(...$args);
@@ -52,6 +52,14 @@ class Callback
         callable $callback,
         mixed ...$args
     ) : mixed {
-        return self::suppress($callback, $error, ...$args);
+
+        try {
+            set_error_handler(static fn () => null);
+            return $callback(...$args);
+        } catch (Throwable) {
+            return null;
+        } finally {
+            restore_error_handler();
+        }
     }
 }

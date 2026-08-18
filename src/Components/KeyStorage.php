@@ -18,6 +18,8 @@ use function trim;
 #[SensitiveData('This class contains sensitive data')]
 class KeyStorage
 {
+    public const DEFAULT_SEPARATOR = ':';
+
     public const AUTH_KEY_NAME = 'authKey';
 
     public const AUTH_SALT_NAME = 'authSalt';
@@ -46,6 +48,18 @@ class KeyStorage
         return $this->data ??= [];
     }
 
+    /**
+     * Get Combined Key for Inner Signature
+     *
+     * @param string|null $separator
+     * @return string
+     */
+    public function getCombinedKey(?string $separator = self::DEFAULT_SEPARATOR): string
+    {
+        $separator ??= self::DEFAULT_SEPARATOR;
+        return $this->getAuthKey() . $separator . $this->getAuthSalt();
+    }
+
     #[SensitiveData('This method returns sensitive data')]
     public function getAuthKey(): string
     {
@@ -69,7 +83,7 @@ class KeyStorage
             return $auth_salt;
         }
         $auth_salt = defined('AUTH_SALT')
-            && is_string(AUTH_SALT) && trim(AUTH_SALT) !== ''
+        && is_string(AUTH_SALT) && trim(AUTH_SALT) !== ''
             ? AUTH_SALT
             : $this->option->getOption('AUTH_SALT');
         if (!is_string($auth_salt) || trim($auth_salt) === '') {
@@ -79,12 +93,16 @@ class KeyStorage
         return $this->data[self::AUTH_SALT_NAME] = $auth_salt;
     }
 
-    public function get(string $key)
+    /**
+     * @param string $key
+     * @return string|null
+     */
+    public function get(string $key): ?string
     {
         return match ($key) {
             self::AUTH_KEY_NAME => $this->getAuthKey(),
             self::AUTH_SALT_NAME => $this->getAuthSalt(),
-            default => $this->getData()[$key] ?? null,
+            default => is_string($this->getData()[$key] ?? null) ? $this->getData()[$key] : null,
         };
     }
 

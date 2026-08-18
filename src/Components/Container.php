@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace TrayDigita\WP\Headless\Resource\Components;
 
 use DI;
-use Google\Site_Kit_Dependencies\Google\Service\Adsense\Site;
 use GuzzleHttp\Psr7\ServerRequest;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -21,9 +20,17 @@ use function DI\autowire;
 use function DI\factory;
 use function DI\get;
 use function DI\value;
+use function dirname;
+use function file_exists;
+use function is_dir;
+use function plugin_basename;
 use function plugin_dir_path;
 use function plugin_dir_url;
+use function str_contains;
+use function trailingslashit;
+use function var_dump;
 use function wp_normalize_path;
+use const WP_CONTENT_DIR;
 
 /**
  * @mixin DI\Container
@@ -39,8 +46,11 @@ use function wp_normalize_path;
  * @property-read Attributes $attributes
  * @property-read AdminMenu $admin_menu
  * @property-read AdminMenu $adminMenu
+ * @property-read DevelopmentServerInfo $development_server_info
+ * @property-read DevelopmentServerInfo $developmentServerInfo
  * @property-read KeyStorage $key_storage
  * @property-read KeyStorage $keyStorage
+ * @property-read Hash $hash
  * @property-read Options $options
  * @property-read Photon $photon
  * @property-read PopularPosts $popular_posts
@@ -78,12 +88,8 @@ use function wp_normalize_path;
  * @property-read string $plugin_file
  * @property-read string $plugin_dir
  * @property-read string $plugin_url
- * @property-read ?array{
- *      host: string,
- *      port: int,
- *      url: string,
- *  } $development_servers_json
  * @property-read string $admin_script_handle
+ * @property-read string $server_file
  */
 class Container implements ContainerInterface
 {
@@ -116,26 +122,58 @@ class Container implements ContainerInterface
     public readonly string $pluginUrl;
 
     /**
+     * The cache directory path.
+     *
+     * @var string
+     */
+    public readonly string $compiledCacheDir;
+
+    /**
+     * The cache directory path.
+     *
+     * @var string
+     */
+    public readonly string $cacheDir;
+
+    /**
+     * The base directory name of the plugin.
+     *
+     * @var string
+     */
+    public readonly string $baseDirName;
+
+    /**
+     * The content directory path.
+     *
+     * @var string
+     */
+    public readonly string $contentDir;
+
+    /**
      * Container constructor.
      * @param bool $development Indicates whether the plugin is in development mode.
      * @param string $version
-     * @param ?array{
-     *     host: string,
-     *     port: int,
-     *     url: string,
-     * } $developmentServersJson An array of development server URLs.
+     * @param string $serverFile The path to the server file.
      * @param string $pluginFile The path to the main plugin file.
      * @param string $adminScriptHandle The main scriptname to load
      */
     public function __construct(
         public readonly bool $development,
         public readonly string $version,
-        public readonly ?array $developmentServersJson,
+        public readonly string $serverFile,
         public readonly string $pluginFile,
         public readonly string $adminScriptHandle
     ) {
+        $base = plugin_basename($this->pluginFile);
+        if (str_contains($base, '/')) {
+            $base = dirname($base);
+        }
+        $this->baseDirName = $base;
         $this->pluginDir = wp_normalize_path(plugin_dir_path($this->pluginFile));
         $this->pluginUrl = plugin_dir_url($this->pluginFile);
+        $this->contentDir = trailingslashit(wp_normalize_path(WP_CONTENT_DIR));
+        $this->cacheDir = "{$this->contentDir}cache/";
+        $this->compiledCacheDir = "$this->cacheDir$this->baseDirName/";
     }
 
     /**
@@ -157,8 +195,8 @@ class Container implements ContainerInterface
             'plugin_url' => get('pluginUrl'),
             'version' => value($this->version),
             'admin_script_handle' => value($this->adminScriptHandle),
-            'developmentServersJson' => value($this->developmentServersJson),
-            'development_servers_json' => get('developmentServersJson'),
+            'serverFile' => value($this->serverFile),
+            'server_file' => get('serverFile'),
             // self
             ContainerInterface::class => value($this),
             self::class => value($this),
@@ -173,8 +211,13 @@ class Container implements ContainerInterface
             // libs
             Assets::class => autowire(Assets::class),
             'assets' => get(Assets::class),
+            DevelopmentServerInfo::class => autowire(DevelopmentServerInfo::class),
+            'development_server_info' => get(DevelopmentServerInfo::class),
+            'developmentServerInfo' => get(DevelopmentServerInfo::class),
             Feature::class => autowire(Feature::class),
             'feature' => get(Feature::class),
+            Hash::class => autowire(Hash::class),
+            'hash' => get(Hash::class),
             TrayDigita::class => autowire(TrayDigita::class),
             'traydigita' => get(TrayDigita::class),
             Attributes::class => autowire(Attributes::class),
@@ -234,7 +277,7 @@ class Container implements ContainerInterface
             Cloudflare::class => autowire(Cloudflare::class),
             'cloudflare' => get(Cloudflare::class),
             'cloudFlare' => get(Cloudflare::class),
-            Ip::class => static fn (DI\Container $container) => $container->get(Cloudflare::class)->ip,
+            Ip::class => static fn(DI\Container $container) => $container->get(Cloudflare::class)->ip,
             'ip' => get(Ip::class),
             UserAgent::class => autowire(UserAgent::class),
             'user_agent' => get(UserAgent::class),
@@ -252,7 +295,29 @@ class Container implements ContainerInterface
      */
     public function getContainer(): DI\Container
     {
-        return $this->container ??= DI\Container::create($this->factoryDefinitions());
+        if (isset($this->container)) {
+            return $this->container;
+        }
+        try {
+            $builder = new DI\ContainerBuilder(self::class);
+            $builder
+                ->addDefinitions($this->factoryDefinitions())
+                ->useAutowiring(true)
+                ->useAttributes(true);
+            if (!$this->development) {
+                $cacheDir = $this->compiledCacheDir;
+                if (!file_exists($cacheDir)) {
+                    wp_mkdir_p($cacheDir);
+                }
+                if (is_dir($cacheDir) && wp_is_writable($cacheDir)) {
+                    $builder->enableCompilation($cacheDir);
+                }
+            }
+            $this->container = $builder->build();
+        } catch (Throwable) {
+            $this->container = DI\Container::create($this->factoryDefinitions());
+        }
+        return $this->container;
     }
 
     /**
@@ -344,7 +409,7 @@ class Container implements ContainerInterface
      * @return array<string, Throwable> An associative array of errors,
      *      where the keys are the identifiers and the values are the corresponding exceptions.
      */
-    public function getErrors() : array
+    public function getErrors(): array
     {
         return $this->errors ?? [];
     }
